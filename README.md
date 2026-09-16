@@ -13,7 +13,7 @@ python src/make.py --preset presets/default.json --input 내영상.mp4
 |---|---|
 | 소스 확보 | 로컬 파일 또는 URL(yt-dlp 다운로드) |
 | 화면 변환 | 가로/정사각 영상을 9:16 세로로 (잘라내기 / 단색 여백 / 블러 여백) |
-| 자막 | 음성인식으로 자동 생성하거나, 준비한 SRT 를 스타일 입혀 화면에 굽기 |
+| 자막 | 음성인식으로 자동 생성하거나, 준비한 SRT 를 스타일 입혀 화면에 굽기 (한국어·일본어·영어) |
 | 훅 문구 | 첫 몇 초간 화면 상단에 큰 글씨 |
 | 배경음악 | 루프 + 페이드 + 말할 때 자동으로 볼륨 낮추기(더킹) |
 | 워터마크 | 로고 PNG 를 원하는 모서리에 |
@@ -175,8 +175,10 @@ VS Code 등에서 프리셋을 열면 `$schema` 덕분에 자동완성이 됩니
 | `border_style` | 1 | `1`=외곽선, `3`=박스 배경(`back_color`) |
 | `alignment` | 2 | 숫자패드 배열. `2`=하단중앙, `5`=정중앙, `8`=상단중앙 |
 | `margin_v` | 420 | 아래 여백(px). 클수록 자막이 위로 올라옵니다 |
-| `max_chars_per_line` | 18 | 한 줄 글자 수 |
-| `max_lines` | 2 | 한 번에 띄울 목표 줄 수. **글자가 잘리는 일은 없습니다** |
+| `max_chars_per_line` | 18 | 한 줄 글자 수. 일본어는 12~14 권장 |
+| `max_lines` | 2 | 한 번에 띄울 줄 수. **글자가 잘리는 일은 없습니다** |
+
+`language` 는 음성인식 언어이자 줄바꿈 방식을 정합니다. 아래 "여러 언어" 항목을 보세요.
 
 ### `bgm` — 배경음악
 | 항목 | 기본값 | 설명 |
@@ -205,6 +207,29 @@ VS Code 등에서 프리셋을 열면 `$schema` 덕분에 자동완성이 됩니
 | `box` / `box_opacity` | false / 0.6 | 글씨 뒤 반투명 박스 |
 | `position_y` | 0.18 | 화면 높이 대비 세로 위치 |
 
+### 여러 언어 (한국어 / 일본어 / 영어)
+
+줄바꿈은 글자 종류를 보고 알아서 갈립니다. 따로 켤 설정은 없습니다.
+
+- **한국어·영어** — 단어(공백) 경계에서 끊습니다.
+- **일본어·중국어** — 단어 사이에 공백이 없으므로 글자 단위로 끊되,
+  **금칙처리(禁則処理)** 를 적용합니다. `、。？！」` 가 줄 맨 앞에 오지 않고,
+  `「（` 가 줄 맨 끝에 오지 않으며, 문장부호만 홀로 남는 자막이 생기지 않습니다.
+- **섞인 문장** — `日本語とEnglish` 처럼 섞여 있어도 영단어는 쪼개지 않습니다.
+
+```bash
+# 일본어 영상
+python src/make.py --preset presets/ja-shorts.json --input 動画.mp4
+
+# 다른 프리셋을 일본어로 돌릴 때
+python src/make.py --preset presets/default.json --input 動画.mp4 \
+  --set subtitle.language=ja --set subtitle.max_chars_per_line=12
+```
+
+> 일본어 자막에는 일본어 글자가 들어 있는 폰트가 필요합니다.
+> `subtitle.font_file` 에 경로를 주는 편이 가장 확실합니다
+> (예: Noto Sans JP, M PLUS, 源ノ角ゴシック).
+
 ---
 
 ## 6. 기본 제공 프리셋
@@ -214,6 +239,7 @@ VS Code 등에서 프리셋을 열면 `$schema` 덕분에 자동완성이 됩니
 | `presets/default.json` | 세로 소스 그대로. 중앙 크롭 + 외곽선 자막 |
 | `presets/landscape-to-shorts.json` | 가로 영상 → 쇼츠. 위아래 블러 여백 |
 | `presets/bold-caption.json` | 정보성 클립. 큰 박스 자막 + 1.05배속 |
+| `presets/ja-shorts.json` | 일본어 영상용. `language: ja`, 글자 단위 줄바꿈에 맞춘 값 |
 
 내 스타일을 만들려면 하나를 복사해서 고치면 됩니다.
 
@@ -243,8 +269,9 @@ make.py
 ## 8. 문제 해결
 
 **자막이 네모(□)로 나와요**
-한글을 지원하는 폰트가 없습니다. `assets/fonts/` 에 한글 `.ttf` 를 넣고
+해당 언어 글자가 들어 있는 폰트가 없습니다. `assets/fonts/` 에 `.ttf` 를 넣고
 `--set subtitle.font_file=assets/fonts/폰트.ttf` 로 지정하세요.
+한글이면 Pretendard·나눔스퀘어, 일본어면 Noto Sans JP·M PLUS 등이 무난합니다.
 
 **자동 자막이 틀려요**
 `--set subtitle.whisper_model=medium` 으로 모델을 키우거나,

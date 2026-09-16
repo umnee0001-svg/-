@@ -15,6 +15,73 @@ class Cue:
     text: str
 
 
+# --------------------------------------------------------------------------
+# CJK(일본어/중국어/한자) 처리
+#
+# 일본어는 단어 사이에 공백이 없어서 공백 기준 줄바꿈이 통하지 않는다.
+# 글자 단위로 쪼개되, 문장부호가 줄 맨 앞/뒤에 오지 않도록 금칙처리(禁則処理)한다.
+# --------------------------------------------------------------------------
+
+# 줄 맨 앞에 올 수 없는 글자 (行頭禁則)
+NO_LINE_START = set(
+    "、。，．）」』】〕〉》〗〙〛’”？！?!:;・･ー～〜%‰℃"
+    "ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ々ゝゞヽヾ"
+)
+# 줄 맨 뒤에 올 수 없는 글자 (行末禁則)
+NO_LINE_END = set("（「『【〔〈《〖〘〚‘“#$£¥")
+
+
+def is_cjk(ch: str) -> bool:
+    """한자·히라가나·가타카나·전각 문장부호인지."""
+    code = ord(ch)
+    return (
+        0x3000 <= code <= 0x30FF      # CJK 기호, 히라가나, 가타카나
+        or 0x3400 <= code <= 0x4DBF   # 한자 확장 A
+        or 0x4E00 <= code <= 0x9FFF   # 한자
+        or 0xF900 <= code <= 0xFAFF   # 한자 호환
+        or 0xFF00 <= code <= 0xFF60   # 전각 영숫자·기호
+        or 0xFFE0 <= code <= 0xFFE6
+    )
+
+
+def atoms(text: str) -> list[str]:
+    """줄바꿈 후보 단위로 쪼갠다.
+
+    CJK 는 한 글자가 한 단위, 그 외(영숫자 등)는 연속된 덩어리가 한 단위.
+    공백은 버리고, 다시 붙일 때 join_text() 가 필요한 곳에만 넣는다.
+    """
+    out: list[str] = []
+    buf = ""
+    for ch in text:
+        if ch.isspace():
+            if buf:
+                out.append(buf)
+                buf = ""
+        elif is_cjk(ch):
+            if buf:
+                out.append(buf)
+                buf = ""
+            out.append(ch)
+        else:
+            buf += ch
+    if buf:
+        out.append(buf)
+    return out
+
+
+def join_text(left: str, right: str) -> str:
+    """두 조각을 이어 붙인다. CJK 경계에는 공백을 넣지 않는다."""
+    if not left:
+        return right
+    if not right:
+        return left
+    if left.endswith(" ") or right.startswith(" "):
+        return left + right
+    if is_cjk(left[-1]) or is_cjk(right[0]):
+        return left + right
+    return left + " " + right
+
+
 class SubtitleError(RuntimeError):
     pass
 
@@ -139,14 +206,13 @@ def group_cues(cues: list[Cue], *, max_chars: int, max_lines: int,
                                   max_gap=max_gap))
         return out
 
-    budget = max_chars * max_lines
     words: list[Cue] = []
     for cue in cues:
-        pieces = cue.text.split()
+        pieces = atoms(cue.text)
         if len(pieces) <= 1:
             words.append(cue)
             continue
-        # 문장 큐는 글자 수 비례로 시간을 나눠 단어 큐로 펼친다.
+        # 문장 큐는 글자 수 비례로 시간을 나눠 조각 큐로 펼친다.
         total = sum(len(p) for p in pieces) or 1
         span = cue.end - cue.start
         cursor = cue.start
@@ -158,17 +224,28 @@ def group_cues(cues: list[Cue], *, max_chars: int, max_lines: int,
     grouped: list[Cue] = []
     buf: list[Cue] = []
 
+    def buffered_text() -> str:
+        text = ""
+        for cue in buf:
+            text = join_text(text, cue.text)
+        return text
+
     def flush() -> None:
         if not buf:
             return
-        text = " ".join(c.text for c in buf)
-        grouped.append(Cue(buf[0].start, buf[-1].end, text))
+        grouped.append(Cue(buf[0].start, buf[-1].end, buffered_text()))
         buf.clear()
 
     for word in words:
         if buf:
-            pending = len(" ".join(c.text for c in buf)) + 1 + len(word.text)
-            if pending > budget or (word.start - buf[-1].end) > max_gap:
+            # 。、？！ 같은 글자가 새 자막의 첫 글자가 되면 홀로 깜빡이므로 붙여 둔다.
+            orphan = word.text[0] in NO_LINE_START
+            pending = join_text(buffered_text(), word.text)
+            # 글자 수가 아니라 실제로 몇 줄이 되는지로 판단한다.
+            # (일본어의 "YouTube" 처럼 안 쪼개지는 덩어리가 있으면 둘이 어긋난다)
+            too_long = len(wrap_lines(pending, max_chars=max_chars)) > max_lines
+            gap = word.start - buf[-1].end
+            if not orphan and (too_long or gap > max_gap):
                 flush()
         buf.append(word)
         if re.search(r"[.!?。？！]$", word.text):
@@ -177,36 +254,70 @@ def group_cues(cues: list[Cue], *, max_chars: int, max_lines: int,
     return [c for c in grouped if c.end > c.start and c.text.strip()]
 
 
-def wrap(text: str, *, max_chars: int, max_lines: int) -> str:
-    """단어 경계 우선, 안 되면 글자 수로 줄바꿈. 한국어/영어 모두 동작."""
-    words = text.split()
+def wrap_lines(text: str, *, max_chars: int) -> list[str]:
+    """줄바꿈해서 줄 목록을 돌려준다. max_lines 는 적용하지 않는다.
+
+    한국어·영어는 단어 경계, 일본어·중국어는 글자 단위 + 금칙처리(禁則処理).
+    글자를 버리는 일은 없다.
+    """
     lines: list[str] = []
     current = ""
-    for word in words:
-        candidate = f"{current} {word}".strip()
-        if len(candidate) <= max_chars or not current:
+    queue = atoms(text)
+    index = 0
+
+    while index < len(queue):
+        unit = queue[index]
+
+        # 공백 없는 긴 덩어리(URL, 긴 영단어)는 강제로 자른다.
+        if not current and len(unit) > max_chars:
+            lines.append(unit[:max_chars])
+            queue[index] = unit[max_chars:]
+            continue
+
+        candidate = join_text(current, unit)
+        if not current or len(candidate) <= max_chars:
             current = candidate
+            index += 1
+            continue
+
+        # 줄을 넘겨야 하는 지점 — 금칙처리
+        if unit[0] in NO_LINE_START:
+            current = candidate      # 한 글자 넘치더라도 이 줄에 붙여 둔다
+            index += 1
+            continue
+
+        moved, head = "", current
+        while head and head[-1] in NO_LINE_END:
+            moved = head[-1] + moved    # 여는 괄호류는 다음 줄로 내린다
+            head = head[:-1]
+        if head:
+            lines.append(head)
+            current = moved
         else:
             lines.append(current)
-            current = word
+            current = ""
+        # unit 은 다음 줄에서 다시 시도
+
     if current:
         lines.append(current)
+    return lines
 
-    # 공백 없는 긴 토큰은 강제로 자른다.
-    split_lines: list[str] = []
-    for line in lines:
-        while len(line) > max_chars:
-            split_lines.append(line[:max_chars])
-            line = line[max_chars:]
-        if line:
-            split_lines.append(line)
 
-    # max_lines 를 넘더라도 글자를 버리지 않는다. 넘치는 줄은 마지막 줄에 합친다.
-    if len(split_lines) > max_lines:
-        head = split_lines[:max_lines - 1]
-        head.append(" ".join(split_lines[max_lines - 1:]))
-        split_lines = head
-    return r"\N".join(split_lines)
+def wrap(text: str, *, max_chars: int, max_lines: int) -> str:
+    """ASS 한 줄로 쓸 수 있게 줄바꿈한다 (`\\N` 으로 연결).
+
+    max_lines 를 넘더라도 글자를 버리지 않고, 넘치는 줄은 마지막 줄에 합친다.
+    group_cues() 가 줄 수를 맞춰 넘겨주므로 보통은 합쳐질 일이 없다.
+    """
+    lines = wrap_lines(text, max_chars=max_chars)
+    if len(lines) > max_lines:
+        head_lines = lines[:max_lines - 1]
+        tail = ""
+        for line in lines[max_lines - 1:]:
+            tail = join_text(tail, line)
+        head_lines.append(tail)
+        lines = head_lines
+    return r"\N".join(lines)
 
 
 def clip_cues(cues: list[Cue], *, offset: float = 0.0,

@@ -145,6 +145,92 @@ class TestSubtitles(unittest.TestCase):
         self.assertEqual(sub._ass_time(3661.5), "1:01:01.50")
 
 
+class TestJapanese(unittest.TestCase):
+    """일본어(공백 없는 CJK) 자막 처리."""
+
+    def test_cjk_detection(self):
+        for ch in "日本語ひらがなカタカナ、。":
+            self.assertTrue(sub.is_cjk(ch), ch)
+        for ch in "aZ9 가나다":
+            self.assertFalse(sub.is_cjk(ch), ch)
+
+    def test_atoms_split_cjk_per_char_and_latin_as_run(self):
+        self.assertEqual(sub.atoms("これはYouTubeです"),
+                         ["こ", "れ", "は", "YouTube", "で", "す"])
+        self.assertEqual(sub.atoms("This is a test"), ["This", "is", "a", "test"])
+
+    def test_join_text_omits_space_at_cjk_boundary(self):
+        self.assertEqual(sub.join_text("これ", "は"), "これは")
+        self.assertEqual(sub.join_text("これ", "YouTube"), "これYouTube")
+        self.assertEqual(sub.join_text("This", "is"), "This is")
+
+    def test_japanese_wrap_respects_max_chars(self):
+        text = "この動画では、YouTubeショートの作り方を解説します。"
+        for line in sub.wrap(text, max_chars=12, max_lines=3).split(r"\N"):
+            self.assertLessEqual(len(line), 12, line)
+
+    def test_japanese_wrap_loses_no_characters(self):
+        text = "えっ、まじで？そんなことある？本当にびっくりした。"
+        wrapped = sub.wrap(text, max_chars=9, max_lines=4).replace(r"\N", "")
+        self.assertEqual(wrapped, text)
+
+    def test_kinsoku_no_punctuation_at_line_start(self):
+        # 줄 맨 앞에 、。？！ 가 오면 안 된다.
+        text = "そうだね、たしかに。でもね、ちょっと待って。うん、そうか。"
+        for max_chars in range(6, 14):
+            lines = sub.wrap(text, max_chars=max_chars, max_lines=9).split(r"\N")
+            for line in lines:
+                self.assertNotIn(line[0], sub.NO_LINE_START,
+                                 f"max_chars={max_chars} 줄='{line}'")
+
+    def test_kinsoku_no_open_bracket_at_line_end(self):
+        text = "彼はこう言った「これは絶対にやめたほうがいい」と。"
+        for max_chars in range(6, 14):
+            for line in sub.wrap(text, max_chars=max_chars, max_lines=9).split(r"\N"):
+                self.assertNotIn(line[-1], sub.NO_LINE_END,
+                                 f"max_chars={max_chars} 줄='{line}'")
+
+    def test_grouping_japanese_sentence_keeps_text(self):
+        cue = sub.Cue(0.0, 5.0, "これはテストです。ちゃんと動きますか。")
+        out = sub.group_cues([cue], max_chars=8, max_lines=2, respect_boundaries=True)
+        self.assertGreater(len(out), 1)
+        self.assertEqual("".join(c.text for c in out), cue.text)
+        self.assertTrue(all(c.end > c.start for c in out))
+
+    def test_grouping_never_orphans_punctuation(self):
+        cue = sub.Cue(0.0, 6.0, "これはテストです。ちゃんと動きますか。よろしく。")
+        out = sub.group_cues([cue], max_chars=6, max_lines=2, respect_boundaries=True)
+        for chunk in out:
+            self.assertNotIn(chunk.text[0], sub.NO_LINE_START, chunk.text)
+        self.assertEqual("".join(c.text for c in out), cue.text)
+
+    def test_grouped_cues_always_fit_in_max_lines(self):
+        """묶기 예산과 실제 줄바꿈 결과가 어긋나지 않는지 (회귀 방지)."""
+        samples = [
+            "この動画では、YouTubeショートの作り方を解説します。",
+            "2026年のTikTokとInstagramのアルゴリズムが変わりました。",
+            "안녕하세요 오늘은 자동 편집 파이프라인을 만들어 보겠습니다",
+            "hello everyone welcome back to another video about automation",
+            "日本語とEnglishとひらがなが混ざった長い文章のテストです。",
+        ]
+        for text in samples:
+            for max_chars, max_lines in ((12, 2), (16, 2), (10, 3), (20, 1)):
+                cues = [sub.Cue(0.0, 8.0, text)]
+                for chunk in sub.group_cues(cues, max_chars=max_chars,
+                                            max_lines=max_lines,
+                                            respect_boundaries=True):
+                    lines = sub.wrap_lines(chunk.text, max_chars=max_chars)
+                    self.assertLessEqual(
+                        len(lines), max_lines,
+                        f"({max_chars},{max_lines}) '{chunk.text}' -> {lines}",
+                    )
+
+    def test_grouping_english_still_spaces_words(self):
+        cue = sub.Cue(0.0, 4.0, "hello there my friend")
+        out = sub.group_cues([cue], max_chars=40, max_lines=2, respect_boundaries=True)
+        self.assertEqual(out[0].text, "hello there my friend")
+
+
 class TestFilters(unittest.TestCase):
     def test_atempo_chain_splits_out_of_range(self):
         self.assertEqual(filters.atempo_chain(1.0), [])
