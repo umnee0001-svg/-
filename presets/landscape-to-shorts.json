@@ -1,0 +1,44 @@
+{
+  "$schema": "../preset.schema.json",
+  "name": "landscape-to-shorts",
+  "output": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "max_duration": 59,
+    "crf": 21
+  },
+  "source": {
+    "fit": "blur_pad",
+    "blur_strength": 45,
+    "trim": {
+      "start": null,
+      "end": null
+    },
+    "speed": 1.0
+  },
+  "subtitle": {
+    "enabled": true,
+    "mode": "auto",
+    "language": "ko",
+    "whisper_model": "small",
+    "font_size": 68,
+    "bold": true,
+    "border_style": 1,
+    "outline": 5,
+    "alignment": 2,
+    "margin_v": 320,
+    "max_chars_per_line": 16,
+    "max_lines": 2
+  },
+  "hook": {
+    "enabled": false,
+    "text": "",
+    "duration": 3.0,
+    "font_size": 88,
+    "box": true,
+    "box_color": "#000000",
+    "box_opacity": 0.55,
+    "position_y": 0.12
+  }
+}

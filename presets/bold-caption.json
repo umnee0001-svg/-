@@ -1,0 +1,52 @@
+{
+  "$schema": "../preset.schema.json",
+  "name": "bold-caption",
+  "output": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "max_duration": 45,
+    "crf": 19
+  },
+  "source": {
+    "fit": "crop",
+    "crop_anchor": "center",
+    "speed": 1.05
+  },
+  "subtitle": {
+    "enabled": true,
+    "mode": "auto",
+    "language": "ko",
+    "whisper_model": "small",
+    "font_size": 88,
+    "bold": true,
+    "primary_color": "#FFFFFF",
+    "back_color": "#000000",
+    "border_style": 3,
+    "outline": 3,
+    "shadow": 0,
+    "alignment": 2,
+    "margin_v": 520,
+    "max_chars_per_line": 12,
+    "max_lines": 2
+  },
+  "bgm": {
+    "enabled": false,
+    "file": "assets/bgm/bgm.mp3",
+    "volume_db": -22,
+    "duck": {
+      "enabled": true,
+      "amount_db": -12
+    }
+  },
+  "hook": {
+    "enabled": false,
+    "text": "",
+    "start": 0.0,
+    "duration": 2.5,
+    "font_size": 104,
+    "box": true,
+    "box_opacity": 0.6,
+    "position_y": 0.15
+  }
+}

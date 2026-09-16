@@ -1,0 +1,460 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "쇼츠 자동 생성 프리셋",
+  "description": "모든 항목은 선택입니다. 적지 않은 값은 src/preset.py 의 DEFAULTS 로 채워집니다.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "에디터 자동완성용. 예: ../preset.schema.json"
+    },
+    "name": {
+      "type": "string",
+      "description": "프리셋 이름. 출력 파일명 {preset} 에 들어갑니다."
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "width": {
+          "type": "integer",
+          "multipleOf": 2,
+          "minimum": 2,
+          "default": 1080
+        },
+        "height": {
+          "type": "integer",
+          "multipleOf": 2,
+          "minimum": 2,
+          "default": 1920
+        },
+        "fps": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 30
+        },
+        "max_duration": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0,
+          "default": 60,
+          "description": "최종 길이 상한(초). null 이면 소스 길이 그대로."
+        },
+        "video_codec": {
+          "type": "string",
+          "default": "libx264"
+        },
+        "crf": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 51,
+          "default": 20,
+          "description": "낮을수록 고화질·큰 용량. 18~23 권장."
+        },
+        "x264_preset": {
+          "type": "string",
+          "default": "medium",
+          "enum": [
+            "ultrafast",
+            "superfast",
+            "veryfast",
+            "faster",
+            "fast",
+            "medium",
+            "slow",
+            "slower",
+            "veryslow"
+          ]
+        },
+        "pixel_format": {
+          "type": "string",
+          "default": "yuv420p"
+        },
+        "audio_codec": {
+          "type": "string",
+          "default": "aac"
+        },
+        "audio_bitrate": {
+          "type": "string",
+          "default": "192k"
+        },
+        "filename_template": {
+          "type": "string",
+          "default": "{date}_{preset}_{slug}.mp4",
+          "description": "{date} {time} {preset} {slug} 치환 가능."
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fit": {
+          "type": "string",
+          "enum": [
+            "crop",
+            "pad",
+            "blur_pad"
+          ],
+          "default": "crop",
+          "description": "crop=꽉 채우고 잘라냄 / pad=단색 여백 / blur_pad=같은 영상 블러 여백"
+        },
+        "crop_anchor": {
+          "type": "string",
+          "default": "center",
+          "enum": [
+            "center",
+            "top",
+            "bottom",
+            "left",
+            "right"
+          ],
+          "description": "fit=crop 일 때 어느 쪽을 남길지."
+        },
+        "pad_color": {
+          "type": "string",
+          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+          "default": "#000000"
+        },
+        "blur_strength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 128,
+          "default": 40
+        },
+        "trim": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "start": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "default": null
+            },
+            "end": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "default": null
+            }
+          }
+        },
+        "speed": {
+          "type": "number",
+          "minimum": 0.25,
+          "maximum": 4.0,
+          "default": 1.0
+        },
+        "mute_source": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "subtitle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "file",
+            "none"
+          ],
+          "default": "auto",
+          "description": "auto=Whisper 음성인식 / file=--subs 로 넘긴 SRT / none=없음"
+        },
+        "language": {
+          "type": "string",
+          "default": "ko",
+          "description": "음성인식 언어 코드."
+        },
+        "whisper_model": {
+          "type": "string",
+          "default": "small",
+          "enum": [
+            "tiny",
+            "base",
+            "small",
+            "medium",
+            "large-v2",
+            "large-v3"
+          ]
+        },
+        "font_file": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "예: assets/fonts/Pretendard-Bold.ttf. 지정하면 패밀리 이름을 파일에서 읽습니다."
+        },
+        "font_name": {
+          "type": "string",
+          "default": "Noto Sans CJK KR",
+          "description": "font_file 이 없을 때 쓸 시스템 폰트 이름."
+        },
+        "font_size": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "default": 74
+        },
+        "bold": {
+          "type": "boolean",
+          "default": true
+        },
+        "primary_color": {
+          "type": "string",
+          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+          "default": "#FFFFFF"
+        },
+        "outline_color": {
+          "type": "string",
+          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+          "default": "#000000"
+        },
+        "back_color": {
+          "type": "string",
+          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+          "default": "#000000",
+          "description": "border_style=3 일 때 자막 뒤 박스 색."
+        },
+        "outline": {
+          "type": "number",
+          "minimum": 0,
+          "default": 5
+        },
+        "shadow": {
+          "type": "number",
+          "minimum": 0,
+          "default": 2
+        },
+        "border_style": {
+          "type": "integer",
+          "enum": [
+            1,
+            3
+          ],
+          "default": 1,
+          "description": "1=외곽선, 3=박스 배경"
+        },
+        "alignment": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9,
+          "default": 2,
+          "description": "숫자패드 배열. 2=하단중앙, 5=정중앙, 8=상단중앙"
+        },
+        "margin_v": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 420,
+          "description": "위/아래 여백(px). 값이 클수록 화면 중앙 쪽으로 올라옵니다."
+        },
+        "margin_h": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 80
+        },
+        "max_chars_per_line": {
+          "type": "integer",
+          "minimum": 4,
+          "default": 18
+        },
+        "max_lines": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2,
+          "description": "한 번에 띄울 목표 줄 수. 글자는 절대 잘리지 않습니다."
+        },
+        "uppercase": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "bgm": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "file": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "volume_db": {
+          "type": "number",
+          "default": -20
+        },
+        "loop": {
+          "type": "boolean",
+          "default": true
+        },
+        "fade_in": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1.0
+        },
+        "fade_out": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1.5
+        },
+        "duck": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "말소리가 나올 때 BGM 을 자동으로 낮춥니다.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "amount_db": {
+              "type": "number",
+              "default": -10
+            }
+          }
+        }
+      }
+    },
+    "watermark": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "file": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "PNG 권장(투명 배경)."
+        },
+        "position": {
+          "type": "string",
+          "default": "top-right",
+          "enum": [
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right"
+          ]
+        },
+        "margin": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 48
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.85
+        },
+        "scale": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "default": 0.12,
+          "description": "영상 가로폭 대비 로고 너비 비율."
+        }
+      }
+    },
+    "hook": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "첫 몇 초간 화면에 크게 박히는 문구. --hook 으로도 덮어쓸 수 있습니다.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "text": {
+          "type": "string",
+          "default": ""
+        },
+        "start": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.0
+        },
+        "duration": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 3.0
+        },
+        "font_file": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "font_size": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "default": 96
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+          "default": "#FFFFFF"
+        },
+        "outline_color": {
+          "type": "string",
+          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+          "default": "#000000"
+        },
+        "outline": {
+          "type": "number",
+          "minimum": 0,
+          "default": 6
+        },
+        "box": {
+          "type": "boolean",
+          "default": false
+        },
+        "box_color": {
+          "type": "string",
+          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+          "default": "#000000"
+        },
+        "box_opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.6
+        },
+        "position_y": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.18,
+          "description": "화면 높이 대비 세로 위치 비율."
+        }
+      }
+    }
+  }
+}

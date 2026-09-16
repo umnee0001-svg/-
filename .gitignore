@@ -1,0 +1,24 @@
+# 결과물
+output/*
+!output/.gitkeep
+
+# 사용자 자산 (용량이 크고 저작권이 걸려 있어 커밋하지 않습니다)
+assets/fonts/*
+!assets/fonts/.gitkeep
+assets/bgm/*
+!assets/bgm/.gitkeep
+assets/watermark/*
+!assets/watermark/.gitkeep
+samples/*
+!samples/.gitkeep
+
+# 파이썬
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db

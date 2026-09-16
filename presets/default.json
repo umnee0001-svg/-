@@ -1,0 +1,47 @@
+{
+  "$schema": "../preset.schema.json",
+  "name": "shorts-basic",
+  "output": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "max_duration": 59,
+    "crf": 20,
+    "filename_template": "{date}_{preset}_{slug}.mp4"
+  },
+  "source": {
+    "fit": "crop",
+    "crop_anchor": "center",
+    "trim": {
+      "start": null,
+      "end": null
+    },
+    "speed": 1.0
+  },
+  "subtitle": {
+    "enabled": true,
+    "mode": "auto",
+    "language": "ko",
+    "whisper_model": "small",
+    "font_size": 74,
+    "bold": true,
+    "primary_color": "#FFFFFF",
+    "outline_color": "#000000",
+    "outline": 5,
+    "shadow": 2,
+    "border_style": 1,
+    "alignment": 2,
+    "margin_v": 420,
+    "max_chars_per_line": 16,
+    "max_lines": 2
+  },
+  "bgm": {
+    "enabled": false
+  },
+  "watermark": {
+    "enabled": false
+  },
+  "hook": {
+    "enabled": false
+  }
+}
