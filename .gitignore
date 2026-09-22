@@ -22,3 +22,10 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# 업로더 로컬 설정/상태 (MultiLogin 프로필 ID 등이 들어가므로 커밋하지 않습니다)
+channels.json
+settings.json
+*.db
+*.db-wal
+*.db-shm

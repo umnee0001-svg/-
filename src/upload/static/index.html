@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>유튜브 예약 업로더</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2a2f3a;
+    --fg:#e6e9ef; --dim:#9aa3b2; --accent:#4f8cff; --ok:#3fb950;
+    --warn:#d29922; --err:#f85149; --radius:10px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo",
+    "Malgun Gothic",sans-serif}
+  header{display:flex;align-items:center;gap:16px;padding:14px 20px;
+    background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+  header h1{font-size:16px;margin:0;font-weight:600}
+  .grow{flex:1}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:6px}
+  .dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+  .dot.off{background:#555}
+  main{max-width:1180px;margin:0 auto;padding:20px;display:grid;gap:18px}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    overflow:hidden}
+  section>h2{margin:0;padding:12px 16px;font-size:13px;font-weight:600;color:var(--dim);
+    background:var(--panel2);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:10px}
+  section>.body{padding:16px}
+  button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);
+    border-radius:7px;padding:7px 13px;cursor:pointer;font-size:13px;font-family:inherit}
+  button:hover{border-color:#3d445}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.danger{color:var(--err)}
+  button.sm{padding:4px 9px;font-size:12px}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  input,select,textarea{background:var(--bg);color:var(--fg);border:1px solid var(--line);
+    border-radius:7px;padding:7px 10px;font:inherit;width:100%}
+  textarea{resize:vertical;min-height:70px}
+  label{display:block;font-size:12px;color:var(--dim);margin-bottom:5px}
+  .field{margin-bottom:12px}
+  .row{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);
+    vertical-align:top}
+  th{color:var(--dim);font-weight:500;font-size:12px}
+  tr:last-child td{border-bottom:none}
+  .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;
+    border:1px solid var(--line)}
+  .s-queued{color:var(--dim)} .s-scheduled{color:var(--accent);border-color:var(--accent)}
+  .s-uploading{color:var(--warn);border-color:var(--warn)}
+  .s-done{color:var(--ok);border-color:var(--ok)}
+  .s-failed,.s-canceled{color:var(--err);border-color:var(--err)}
+  .muted{color:var(--dim);font-size:12px}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+    padding:12px 14px;margin-bottom:10px}
+  .card h3{margin:0 0 4px;font-size:14px}
+  .banner{padding:10px 14px;border-radius:8px;margin-bottom:12px;font-size:13px}
+  .banner.err{background:#2a1416;border:1px solid var(--err);color:#ffb4ae}
+  .banner.warn{background:#2a2410;border:1px solid var(--warn);color:#e3c07a}
+  .logs{max-height:280px;overflow:auto;font:12px/1.7 ui-monospace,Menlo,Consolas,monospace}
+  .logs div{padding:1px 0;border-bottom:1px solid #1d2028}
+  .logs .warn{color:var(--warn)} .logs .error{color:var(--err)}
+  .picker{max-height:230px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+  .picker div{padding:6px 11px;cursor:pointer;border-bottom:1px solid #1d2028}
+  .picker div:hover{background:var(--panel2)}
+  .picker div.sel{background:#1b2a45;color:#cfe0ff}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .chips span{background:var(--panel2);border:1px solid var(--line);border-radius:20px;
+    padding:2px 9px;font-size:12px}
+  details summary{cursor:pointer;color:var(--dim);font-size:12px;padding:4px 0}
+  .split{display:grid;gap:18px;grid-template-columns:1fr 1fr}
+  @media(max-width:880px){.split{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>유튜브 예약 업로더</h1>
+  <span id="worker-state" class="muted"><span class="dot off"></span>일꾼 멈춤</span>
+  <span class="grow"></span>
+  <span id="clock" class="muted"></span>
+  <button id="btn-worker" class="primary">일꾼 시작</button>
+</header>
+
+<main>
+  <div id="banners"></div>
+
+  <section>
+    <h2>큐 <span id="counts" class="muted"></span></h2>
+    <div class="body" style="padding:0">
+      <table>
+        <thead><tr>
+          <th style="width:52px">#</th><th style="width:130px">채널</th>
+          <th>제목 / 파일</th><th style="width:170px">공개 예정</th>
+          <th style="width:100px">상태</th><th style="width:150px">동작</th>
+        </tr></thead>
+        <tbody id="jobs"><tr><td colspan="6" class="muted" style="padding:18px">
+          아직 큐가 비어 있습니다.</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="split">
+    <section>
+      <h2>영상 올리기</h2>
+      <div class="body">
+        <div class="field">
+          <label>채널</label>
+          <select id="job-channel"></select>
+        </div>
+
+        <div class="field">
+          <label>폴더 <span id="cwd" class="muted"></span></label>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <input id="dir" placeholder="영상이 들어있는 폴더 경로">
+            <button id="btn-browse" class="sm">열기</button>
+            <button id="btn-up" class="sm">상위</button>
+          </div>
+          <div id="picker" class="picker"></div>
+          <div class="muted" style="margin-top:6px">
+            여러 개를 고르면 채널 시간표의 빈 슬롯에 하나씩 나눠 배정됩니다.
+          </div>
+        </div>
+
+        <div class="field">
+          <label>제목 (비우면 파일명)</label>
+          <input id="job-title" maxlength="100" placeholder="100자까지">
+        </div>
+        <div class="field">
+          <label>설명</label>
+          <textarea id="job-desc" maxlength="5000"></textarea>
+        </div>
+        <div class="field">
+          <label>해시태그 (쉼표 또는 공백으로 구분, 최대 15개)</label>
+          <input id="job-tags" placeholder="#쇼츠, #꿀팁">
+        </div>
+        <div class="field">
+          <label>쇼핑 제품 태그 (쉼표로 구분 — 제품명 또는 제품 URL)</label>
+          <input id="job-products" placeholder="채널에 쇼핑 자격이 있을 때만 적용됩니다">
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>공개 방식</label>
+            <select id="job-visibility">
+              <option value="scheduled">예약 공개</option>
+              <option value="public">바로 공개</option>
+              <option value="unlisted">일부 공개</option>
+              <option value="private">비공개</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>공개 시각 (비우면 시간표대로 자동 배정)</label>
+            <input id="job-when" type="datetime-local">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button id="btn-preview">미리보기</button>
+          <button id="btn-add" class="primary">큐에 넣기</button>
+        </div>
+        <div id="preview" class="card" style="display:none;margin-top:12px"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>채널 <span class="muted">(개수 제한 없음)</span></h2>
+      <div class="body">
+        <div id="channels"></div>
+        <details id="ch-form-wrap">
+          <summary id="ch-form-title">+ 채널 추가</summary>
+          <div style="padding-top:12px">
+            <div class="row">
+              <div class="field"><label>채널 ID (영문/숫자)</label>
+                <input id="ch-id" placeholder="ch1"></div>
+              <div class="field"><label>채널 이름</label>
+                <input id="ch-name" placeholder="요리 채널"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label>MultiLogin 버전</label>
+                <select id="ch-mlver"><option value="x">MultiLogin X</option>
+                <option value="v6">MultiLogin 6</option></select></div>
+              <div class="field"><label>프로필 ID</label>
+                <input id="ch-profile"></div>
+              <div class="field"><label>폴더 ID (X 전용)</label>
+                <input id="ch-folder"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label>업로드 시각 (쉼표 구분, HH:MM)</label>
+                <input id="ch-slots" value="09:00, 18:00"></div>
+              <div class="field"><label>요일 (0=월 … 6=일)</label>
+                <input id="ch-days" value="0,1,2,3,4,5,6"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label>최소 간격 (분)</label>
+                <input id="ch-gap" type="number" value="120"></div>
+              <div class="field"><label>하루 최대 (비우면 슬롯 수)</label>
+                <input id="ch-cap" type="number" placeholder=""></div>
+            </div>
+            <div class="field"><label>기본 해시태그</label>
+              <input id="ch-hashtags" placeholder="#쇼츠, #일상"></div>
+            <div class="field"><label>제목 템플릿</label>
+              <input id="ch-title-tpl" value="{title}"></div>
+            <div class="field"><label>설명 템플릿</label>
+              <textarea id="ch-desc-tpl">{description}
+
+{hashtags}</textarea>
+              <div class="muted">쓸 수 있는 치환자: {title} {description} {hashtags}
+                {date} {time} {channel}</div></div>
+            <div class="field">
+              <label><input type="checkbox" id="ch-shopping" style="width:auto">
+                쇼핑 제품 태그 사용</label>
+              <input id="ch-products" placeholder="기본 제품 (쉼표 구분)">
+            </div>
+            <div class="field">
+              <label><input type="checkbox" id="ch-kids" style="width:auto">
+                아동용 콘텐츠로 표시</label>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button id="btn-save-ch" class="primary">채널 저장</button>
+              <button id="btn-reset-ch">새로 입력</button>
+            </div>
+          </div>
+        </details>
+      </div>
+    </section>
+  </div>
+
+  <section>
+    <h2>기록</h2>
+    <div class="body"><div id="logs" class="logs"></div></div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let STATE = {channels: [], jobs: [], logs: []};
+
+async function api(path, method = "GET", body) {
+  const opts = {method, headers: {"Content-Type": "application/json"}};
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({error: "응답을 읽지 못했습니다."}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+function banner(message, kind = "err") {
+  const el = document.createElement("div");
+  el.className = `banner ${kind}`;
+  el.textContent = message;
+  $("banners").prepend(el);
+  setTimeout(() => el.remove(), 9000);
+}
+
+function parseList(text) {
+  return (text || "").split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
+}
+
+function fmtTime(iso) {
+  if (!iso) return '<span class="muted">미정</span>';
+  return iso.replace("T", " ").slice(0, 16);
+}
+
+// ---------------------------------------------------------------- 렌더
+
+function renderJobs() {
+  const tbody = $("jobs");
+  if (!STATE.jobs.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="muted" style="padding:18px">
+      아직 큐가 비어 있습니다.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = STATE.jobs.map(j => {
+    const name = j.video_path.split(/[\\/]/).pop();
+    const err = j.last_error
+      ? `<div class="muted" style="color:#f0857d">${escapeHtml(j.last_error)}</div>` : "";
+    const url = j.video_url
+      ? `<div class="muted"><a href="${escapeHtml(j.video_url)}" target="_blank"
+          style="color:var(--accent)">${escapeHtml(j.video_url)}</a></div>` : "";
+    const busy = j.status === "uploading";
+    return `<tr>
+      <td class="muted">${j.id}</td>
+      <td>${escapeHtml(j.channel_name || j.channel_id)}</td>
+      <td><div>${escapeHtml(j.title || name)}</div>
+          <div class="muted">${escapeHtml(name)}</div>${err}${url}</td>
+      <td>${fmtTime(j.publish_at)}</td>
+      <td><span class="tag s-${j.status}">${j.status}</span></td>
+      <td>
+        ${j.status === "failed" || j.status === "canceled"
+          ? `<button class="sm" onclick="retryJob(${j.id})">재시도</button>` : ""}
+        ${["queued","scheduled"].includes(j.status)
+          ? `<button class="sm" onclick="cancelJob(${j.id})">취소</button>` : ""}
+        <button class="sm danger" ${busy ? "disabled" : ""}
+          onclick="deleteJob(${j.id})">삭제</button>
+      </td></tr>`;
+  }).join("");
+}
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g,
+    c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+function renderChannels() {
+  const box = $("channels");
+  if (!STATE.channels.length) {
+    box.innerHTML = `<div class="muted" style="padding-bottom:10px">
+      채널이 없습니다. 아래에서 추가하세요.</div>`;
+  } else {
+    box.innerHTML = STATE.channels.map(c => `
+      <div class="card">
+        <h3>${escapeHtml(c.name)} <span class="muted">${escapeHtml(c.id)}</span></h3>
+        <div class="muted">프로필 ${escapeHtml(c.multilogin.profile_id)}
+          · ${c.multilogin.version.toUpperCase()}</div>
+        <div class="muted">시간표 ${c.schedule.slots.join(", ")}
+          · 요일 ${c.schedule.weekdays.join(",")}
+          · 간격 ${c.schedule.min_gap_minutes}분
+          ${c.schedule.max_per_day ? "· 하루 " + c.schedule.max_per_day + "개" : ""}</div>
+        ${c.defaults.shopping.enabled
+          ? '<div class="muted">쇼핑 태그 사용</div>' : ""}
+        <div class="chips">${c.defaults.hashtags.map(
+          t => `<span>${escapeHtml(t)}</span>`).join("")}</div>
+        <div style="margin-top:9px;display:flex;gap:8px">
+          <button class="sm" onclick="editChannel('${escapeHtml(c.id)}')">수정</button>
+          <button class="sm danger"
+            onclick="deleteChannel('${escapeHtml(c.id)}')">삭제</button>
+        </div>
+      </div>`).join("");
+  }
+  const sel = $("job-channel");
+  const before = sel.value;
+  sel.innerHTML = STATE.channels.map(
+    c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join("");
+  if (before) sel.value = before;
+}
+
+function renderLogs() {
+  $("logs").innerHTML = STATE.logs.map(l =>
+    `<div class="${l.level}">${l.created_at.slice(11, 19)} ${escapeHtml(l.message)}</div>`
+  ).join("") || '<div class="muted">아직 기록이 없습니다.</div>';
+}
+
+function renderHeader() {
+  const w = STATE.worker || {};
+  $("worker-state").innerHTML = w.running
+    ? '<span class="dot on"></span>일꾼 동작 중'
+    : '<span class="dot off"></span>일꾼 멈춤';
+  $("btn-worker").textContent = w.running ? "일꾼 정지" : "일꾼 시작";
+  $("clock").textContent = (STATE.now || "").replace("T", " ").slice(0, 19);
+  const counts = STATE.counts || {};
+  $("counts").textContent = Object.entries(counts)
+    .map(([k, v]) => `${k} ${v}`).join(" · ");
+}
+
+// ---------------------------------------------------------------- 동작
+
+async function refresh() {
+  try {
+    STATE = await api("/api/state");
+    if (STATE.config_error) banner(STATE.config_error);
+    renderHeader(); renderJobs(); renderChannels(); renderLogs();
+  } catch (e) { banner(e.message); }
+}
+
+async function retryJob(id) { try { await api(`/api/jobs/${id}/retry`, "POST"); refresh(); }
+  catch (e) { banner(e.message); } }
+async function cancelJob(id) { try { await api(`/api/jobs/${id}/cancel`, "POST"); refresh(); }
+  catch (e) { banner(e.message); } }
+async function deleteJob(id) {
+  if (!confirm(`작업 ${id}번을 큐에서 지울까요?`)) return;
+  try { await api(`/api/jobs/${id}`, "DELETE"); refresh(); }
+  catch (e) { banner(e.message); }
+}
+async function deleteChannel(id) {
+  if (!confirm(`채널 ${id} 를 지울까요? 설정만 지워지고 유튜브 채널은 그대로입니다.`)) return;
+  try { await api(`/api/channels/${id}`, "DELETE"); refresh(); }
+  catch (e) { banner(e.message); }
+}
+
+function editChannel(id) {
+  const c = STATE.channels.find(x => x.id === id);
+  if (!c) return;
+  $("ch-id").value = c.id; $("ch-name").value = c.name;
+  $("ch-mlver").value = c.multilogin.version;
+  $("ch-profile").value = c.multilogin.profile_id;
+  $("ch-folder").value = c.multilogin.folder_id;
+  $("ch-slots").value = c.schedule.slots.join(", ");
+  $("ch-days").value = c.schedule.weekdays.join(",");
+  $("ch-gap").value = c.schedule.min_gap_minutes;
+  $("ch-cap").value = c.schedule.max_per_day ?? "";
+  $("ch-hashtags").value = c.defaults.hashtags.join(", ");
+  $("ch-title-tpl").value = c.defaults.title_template;
+  $("ch-desc-tpl").value = c.defaults.description_template;
+  $("ch-shopping").checked = c.defaults.shopping.enabled;
+  $("ch-products").value = c.defaults.shopping.products.join(", ");
+  $("ch-kids").checked = c.defaults.made_for_kids;
+  $("ch-form-wrap").open = true;
+  $("ch-form-title").textContent = `채널 수정: ${c.name}`;
+  $("ch-id").scrollIntoView({behavior: "smooth", block: "center"});
+}
+
+function resetChannelForm() {
+  ["ch-id","ch-name","ch-profile","ch-folder","ch-hashtags","ch-products","ch-cap"]
+    .forEach(k => $(k).value = "");
+  $("ch-slots").value = "09:00, 18:00";
+  $("ch-days").value = "0,1,2,3,4,5,6";
+  $("ch-gap").value = 120;
+  $("ch-title-tpl").value = "{title}";
+  $("ch-desc-tpl").value = "{description}\n\n{hashtags}";
+  $("ch-shopping").checked = false; $("ch-kids").checked = false;
+  $("ch-form-title").textContent = "+ 채널 추가";
+}
+
+// 파일 고르기 -----------------------------------------------------
+
+let SELECTED = new Set();
+
+async function browse(dir) {
+  try {
+    const data = await api(`/api/browse?dir=${encodeURIComponent(dir)}`);
+    $("dir").value = data.cwd;
+    $("cwd").textContent = data.cwd;
+    $("picker").dataset.parent = data.parent;
+    const rows = [
+      ...data.dirs.map(d => `<div data-dir="${escapeHtml(d.path)}">📁 ${escapeHtml(d.name)}</div>`),
+      ...data.files.map(f => `<div data-file="${escapeHtml(f.path)}"
+        class="${SELECTED.has(f.path) ? "sel" : ""}">🎬 ${escapeHtml(f.name)}
+        <span class="muted">${f.size_mb}MB</span></div>`),
+    ];
+    $("picker").innerHTML = rows.join("")
+      || '<div class="muted">이 폴더에는 영상 파일이 없습니다.</div>';
+  } catch (e) { banner(e.message); }
+}
+
+$("picker").addEventListener("click", (ev) => {
+  const row = ev.target.closest("div[data-dir],div[data-file]");
+  if (!row) return;
+  if (row.dataset.dir) { SELECTED.clear(); browse(row.dataset.dir); return; }
+  const path = row.dataset.file;
+  if (SELECTED.has(path)) { SELECTED.delete(path); row.classList.remove("sel"); }
+  else { SELECTED.add(path); row.classList.add("sel"); }
+});
+
+$("btn-browse").onclick = () => browse($("dir").value || ".");
+$("btn-up").onclick = () => { SELECTED.clear(); browse($("picker").dataset.parent || "."); };
+
+// 큐에 넣기 -------------------------------------------------------
+
+function jobPayload() {
+  return {
+    channel_id: $("job-channel").value,
+    videos: [...SELECTED].map(p => ({path: p})),
+    title: $("job-title").value.trim(),
+    description: $("job-desc").value,
+    hashtags: parseList($("job-tags").value),
+    products: ($("job-products").value || "").split(",")
+      .map(s => s.trim()).filter(Boolean),
+    visibility: $("job-visibility").value,
+    publish_at: $("job-when").value || null,
+  };
+}
+
+$("btn-add").onclick = async () => {
+  const payload = jobPayload();
+  if (!payload.channel_id) return banner("채널을 먼저 추가하세요.");
+  if (!payload.videos.length) return banner("영상을 하나 이상 고르세요.");
+  try {
+    const out = await api("/api/jobs", "POST", payload);
+    banner(`${out.job_ids.length}건을 큐에 넣었습니다.`, "warn");
+    SELECTED.clear();
+    $("job-title").value = ""; $("job-desc").value = "";
+    browse($("dir").value || "."); refresh();
+  } catch (e) { banner(e.message); }
+};
+
+$("btn-preview").onclick = async () => {
+  const p = jobPayload();
+  if (!p.channel_id) return banner("채널을 먼저 추가하세요.");
+  try {
+    const out = await api("/api/preview", "POST", p);
+    $("preview").style.display = "block";
+    $("preview").innerHTML = `
+      <div class="muted">실제로 입력될 내용</div>
+      <div><b>제목</b> (${out.title.length}/100)</div>
+      <div style="white-space:pre-wrap">${escapeHtml(out.title) || "(비어 있음)"}</div>
+      <div style="margin-top:8px"><b>설명</b> (${out.description.length}/5000)</div>
+      <div style="white-space:pre-wrap">${escapeHtml(out.description) || "(비어 있음)"}</div>
+      <div style="margin-top:8px"><b>태그</b> ${out.tags.length}개</div>
+      <div class="chips">${out.tags.map(t => `<span>${escapeHtml(t)}</span>`).join("")}</div>`;
+  } catch (e) { banner(e.message); }
+};
+
+// 채널 저장 -------------------------------------------------------
+
+$("btn-save-ch").onclick = async () => {
+  const cap = $("ch-cap").value.trim();
+  const payload = {
+    id: $("ch-id").value.trim(),
+    name: $("ch-name").value.trim(),
+    multilogin: {
+      version: $("ch-mlver").value,
+      profile_id: $("ch-profile").value.trim(),
+      folder_id: $("ch-folder").value.trim(),
+    },
+    schedule: {
+      slots: parseList($("ch-slots").value),
+      weekdays: parseList($("ch-days").value).map(Number),
+      min_gap_minutes: Number($("ch-gap").value || 0),
+      max_per_day: cap ? Number(cap) : null,
+    },
+    defaults: {
+      hashtags: parseList($("ch-hashtags").value)
+        .map(t => t.startsWith("#") ? t : "#" + t),
+      title_template: $("ch-title-tpl").value,
+      description_template: $("ch-desc-tpl").value,
+      made_for_kids: $("ch-kids").checked,
+      shopping: {
+        enabled: $("ch-shopping").checked,
+        products: ($("ch-products").value || "").split(",")
+          .map(s => s.trim()).filter(Boolean),
+      },
+    },
+  };
+  try {
+    await api("/api/channels", "POST", payload);
+    resetChannelForm(); refresh();
+    banner("채널을 저장했습니다.", "warn");
+  } catch (e) { banner(e.message); }
+};
+
+$("btn-reset-ch").onclick = resetChannelForm;
+
+$("btn-worker").onclick = async () => {
+  const running = STATE.worker && STATE.worker.running;
+  try {
+    await api(running ? "/api/worker/stop" : "/api/worker/start", "POST");
+    refresh();
+  } catch (e) { banner(e.message); }
+};
+
+refresh();
+browse(".");
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

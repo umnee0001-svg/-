@@ -1,0 +1,141 @@
+{
+  "_comment": [
+    "YouTube Studio 의 DOM 셀렉터입니다. 유튜브가 화면을 바꾸면 여기만 고치면 됩니다.",
+    "각 항목은 후보 배열입니다. 위에서부터 차례로 찾아보고 먼저 걸리는 걸 씁니다.",
+    "찾는 법: Studio 에서 F12 → 해당 요소 우클릭 → Copy → Copy selector.",
+    "playwright 문법을 그대로 씁니다. text= / role= 도 쓸 수 있습니다."
+  ],
+
+  "upload_url": "https://www.youtube.com/upload",
+  "studio_url": "https://studio.youtube.com",
+
+  "signed_out_marker": [
+    "a[href*='accounts.google.com/ServiceLogin']",
+    "ytd-button-renderer:has-text('로그인')"
+  ],
+
+  "file_input": [
+    "input[type='file'][name='Filedata']",
+    "input[type='file']"
+  ],
+
+  "title": [
+    "#title-textarea #textbox",
+    "ytcp-social-suggestions-textbox#title-textarea div#textbox",
+    "div[aria-label*='제목']"
+  ],
+  "description": [
+    "#description-textarea #textbox",
+    "ytcp-social-suggestions-textbox#description-textarea div#textbox",
+    "div[aria-label*='설명']"
+  ],
+
+  "show_more": [
+    "#toggle-button",
+    "ytcp-button:has-text('자세히 보기')",
+    "ytcp-button:has-text('SHOW MORE')"
+  ],
+  "tags_input": [
+    "#tags-container input",
+    "input[aria-label*='태그']"
+  ],
+
+  "not_made_for_kids": [
+    "tp-yt-paper-radio-button[name='VIDEO_MADE_FOR_KIDS_NOT_MFK']",
+    "#audience tp-yt-paper-radio-button:nth-of-type(2)"
+  ],
+  "made_for_kids": [
+    "tp-yt-paper-radio-button[name='VIDEO_MADE_FOR_KIDS_MFK']",
+    "#audience tp-yt-paper-radio-button:nth-of-type(1)"
+  ],
+
+  "next_button": [
+    "#next-button",
+    "ytcp-button#next-button"
+  ],
+  "done_button": [
+    "#done-button",
+    "ytcp-button#done-button"
+  ],
+
+  "visibility_public": ["tp-yt-paper-radio-button[name='PUBLIC']"],
+  "visibility_private": ["tp-yt-paper-radio-button[name='PRIVATE']"],
+  "visibility_unlisted": ["tp-yt-paper-radio-button[name='UNLISTED']"],
+
+  "schedule_radio": [
+    "#schedule-radio-button",
+    "tp-yt-paper-radio-button[name='SCHEDULE']"
+  ],
+  "schedule_date_trigger": [
+    "#datepicker-trigger ytcp-dropdown-trigger",
+    "#datepicker-trigger"
+  ],
+  "schedule_date_input": [
+    "ytcp-date-picker input",
+    "tp-yt-paper-dialog input[aria-label*='날짜']"
+  ],
+  "schedule_time_trigger": [
+    "#time-of-day-trigger ytcp-dropdown-trigger",
+    "#time-of-day-trigger"
+  ],
+  "schedule_time_input": [
+    "#time-of-day-trigger input",
+    "tp-yt-paper-dialog input[aria-label*='시간']"
+  ],
+
+  "upload_progress": [
+    ".progress-label",
+    "ytcp-video-upload-progress span.progress-label"
+  ],
+  "processing_done_markers": [
+    "처리 완료",
+    "확인 완료",
+    "Processing complete",
+    "Checks complete",
+    "업로드 완료"
+  ],
+
+  "video_link": [
+    "a.ytcp-video-info",
+    "#share-url",
+    "a[href*='youtu.be/']"
+  ],
+
+  "close_dialog": [
+    "#close-button",
+    "ytcp-button#close-button"
+  ],
+
+  "shopping": {
+    "_comment": [
+      "쇼핑 제품 태그는 YPP 수익화 + 스토어 연동/제휴 자격이 있는 채널에서만 보입니다.",
+      "안 보이는 채널은 자동으로 건너뛰고 로그에 남깁니다."
+    ],
+    "monetization_tab": [
+      "#step-badge-2",
+      "ytcp-button:has-text('수익 창출')"
+    ],
+    "shopping_section": [
+      "ytcp-button:has-text('제품 태그')",
+      "ytcp-button:has-text('쇼핑')",
+      "#shopping-section"
+    ],
+    "product_search_input": [
+      "input[aria-label*='제품 검색']",
+      "#product-search input",
+      "input[placeholder*='검색']"
+    ],
+    "product_result_item": [
+      "ytcp-shopping-product-row",
+      "#product-results ytcp-entity-row"
+    ],
+    "product_add_button": [
+      "ytcp-button:has-text('추가')",
+      "ytcp-button:has-text('Add')"
+    ],
+    "save_button": [
+      "ytcp-button:has-text('저장')",
+      "#save-button"
+    ]
+  }
+}
