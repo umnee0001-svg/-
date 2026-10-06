@@ -332,6 +332,29 @@ class TestSendPhone(unittest.TestCase):
         joined = "".join(m[5:-6] for m in msgs).replace("\n", "")
         self.assertEqual(joined, desc.replace("\n", ""))
 
+    def test_config_lookup_order(self):
+        import json, os, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            home = Path(d) / "home.json"
+            home.write_text(json.dumps({"bot_token": "H", "chats": {"폰1": "1"}}), encoding="utf-8")
+            env = Path(d) / "env.json"
+            env.write_text(json.dumps({"bot_token": "E", "chats": {}}), encoding="utf-8")
+            saved = (send_phone.DEFAULT_CONFIG, send_phone.HOME_CONFIG,
+                     os.environ.pop("SHORTS_PHONES_CONFIG", None),
+                     os.environ.pop("TELEGRAM_BOT_TOKEN", None))
+            try:
+                send_phone.DEFAULT_CONFIG = Path(d) / "없음.json"
+                send_phone.HOME_CONFIG = home
+                self.assertEqual(send_phone.load_config(), ("H", {"폰1": "1"}))
+                os.environ["SHORTS_PHONES_CONFIG"] = str(env)
+                self.assertEqual(send_phone.load_config()[0], "E")
+            finally:
+                send_phone.DEFAULT_CONFIG, send_phone.HOME_CONFIG = saved[0], saved[1]
+                os.environ.pop("SHORTS_PHONES_CONFIG", None)
+                for key, val in (("SHORTS_PHONES_CONFIG", saved[2]), ("TELEGRAM_BOT_TOKEN", saved[3])):
+                    if val is not None:
+                        os.environ[key] = val
+
     def test_select_chats(self):
         chats = {"폰1": "1", "폰2": "2", "폰3": "3"}
         self.assertEqual(send_phone.select_chats(chats, None), chats)

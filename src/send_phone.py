@@ -29,6 +29,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG = ROOT / "phones.json"
+HOME_CONFIG = Path.home() / ".shorts" / "phones.json"   # 여러 폴더(터미널)가 같이 쓰는 위치
 API = "https://api.telegram.org/bot{token}/{method}"
 VIDEO_LIMIT = 50 * 1024 * 1024   # 봇 API 업로드 한도
 TEXT_LIMIT = 4096                # 메시지 1개 글자 수 한도
@@ -38,13 +39,24 @@ class SendError(RuntimeError):
     pass
 
 
+def find_config() -> Path | None:
+    """--config 가 없을 때: 환경변수 → 이 폴더의 phones.json → ~/.shorts/phones.json"""
+    env = os.environ.get("SHORTS_PHONES_CONFIG")
+    if env:
+        return Path(env).expanduser()
+    for candidate in (DEFAULT_CONFIG, HOME_CONFIG):
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def load_config(path: Path | None = None) -> tuple[str, dict[str, str]]:
     """(봇 토큰, {이름: chat_id}) 를 돌려준다. 환경변수가 파일보다 우선."""
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     chats: dict[str, str] = {}
 
-    path = path or DEFAULT_CONFIG
-    if path.exists():
+    path = path or find_config()
+    if path and path.exists():
         data = json.loads(path.read_text(encoding="utf-8"))
         token = token or data.get("bot_token", "")
         chats = {str(k): str(v) for k, v in data.get("chats", {}).items()}
@@ -57,7 +69,8 @@ def load_config(path: Path | None = None) -> tuple[str, dict[str, str]]:
     if not token or token.startswith("여기에"):
         raise SendError(
             "텔레그램 봇 토큰이 없습니다. phones.example.json 을 phones.json 으로 복사해 "
-            "bot_token 을 채우거나 TELEGRAM_BOT_TOKEN 환경변수를 지정하세요."
+            f"bot_token 을 채우세요 ({DEFAULT_CONFIG} 또는 {HOME_CONFIG}). "
+            "TELEGRAM_BOT_TOKEN 환경변수도 됩니다."
         )
     return token, chats
 
@@ -136,7 +149,7 @@ def _call(token: str, method: str, *, fields: dict, file_field: str | None = Non
     return data["result"]
 
 
-def send(*, title: str = "", desc: str = "", video: Path | None = None,
+def send(*, title: str = "", desc: str = "", video: Path | None = None, label: str = "",
          only: str | None = None, config: Path | None = None) -> int:
     """설정된 모든(또는 지정한) 폰에 보낸다. 실패한 폰 수를 돌려준다."""
     token, chats = load_config(config)
@@ -159,6 +172,10 @@ def send(*, title: str = "", desc: str = "", video: Path | None = None,
     failed = 0
     for name, chat_id in chats.items():
         try:
+            if label:
+                # 여러 터미널이 같은 채팅으로 보낼 때 어느 묶음인지 구분하는 머리글
+                _call(token, "sendMessage", fields={"chat_id": chat_id,
+                      "text": f"<b>━━ {html.escape(label)} ━━</b>", "parse_mode": "HTML"})
             if send_video:
                 # sendVideo 가 아니라 '파일'로 보내야 화질·용량이 원본 그대로 유지된다
                 _call(token, "sendDocument", fields={"chat_id": chat_id,
@@ -205,7 +222,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--desc", default="", help="설명 (줄바꿈은 \\n 대신 --desc-file 권장)")
     parser.add_argument("--desc-file", type=Path, help="설명이 담긴 텍스트 파일")
     parser.add_argument("--to", help="일부 폰에만 보내기 (예: 폰1,폰3)")
-    parser.add_argument("--config", type=Path, help=f"설정 파일 (기본: {DEFAULT_CONFIG.name})")
+    parser.add_argument("--label", default="", help="묶음 머리글 (예: 폰2, 요리채널)")
+    parser.add_argument("--config", type=Path,
+                        help=f"설정 파일 (기본: {DEFAULT_CONFIG.name} → ~/.shorts/phones.json)")
     parser.add_argument("--find-chats", action="store_true", help="봇에 말을 건 채팅의 ID 출력")
     args = parser.parse_args(argv)
 
@@ -215,7 +234,7 @@ def main(argv: list[str] | None = None) -> int:
 
     desc = args.desc_file.read_text(encoding="utf-8") if args.desc_file else args.desc
     failed = send(title=args.title, desc=desc.strip(), video=args.video,
-                  only=args.to, config=args.config)
+                  label=args.label, only=args.to, config=args.config)
     return 1 if failed else 0
 
 

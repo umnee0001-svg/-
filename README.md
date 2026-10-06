@@ -129,6 +129,7 @@ done
 | `--title "<제목>"` | 업로드용 제목 (영상 옆 `.txt` 로도 저장) |
 | `--desc "<설명>"` / `--desc-file <파일>` | 업로드용 설명 |
 | `--send [폰1,폰2]` | 완성 후 텔레그램으로 폰에 전송 (9번 참고) |
+| `--label "<머리글>"` | `--send` 때 맨 앞에 붙는 구분용 머리글 (예: `폰2`) |
 | `--send-text-only` | `--send` 때 영상은 빼고 제목·설명만 |
 
 `--set` 은 프리셋을 새로 만들지 않고 한 항목만 바꿔볼 때 씁니다.
@@ -342,6 +343,27 @@ python src/send_phone.py --video output/a.mp4 --title "제목" --desc-file 설�
 - `--title`/`--desc` 를 주면 영상 옆에 같은 이름의 `.txt` 로도 저장됩니다.
 - 봇은 **50MB 까지** 영상을 보낼 수 있습니다. 넘으면 제목·설명만 보내고 알려줍니다.
   (`--set output.crf=23` 으로 용량을 줄일 수 있습니다.)
+### 터미널을 여러 개 쓸 때
+
+**설정 파일은 한 곳에만** 두면 됩니다. 터미널(폴더)마다 따로 만들 필요가 없습니다.
+
+```bash
+mkdir -p ~/.shorts && cp phones.json ~/.shorts/phones.json
+```
+
+찾는 순서: `--config` → 환경변수 `SHORTS_PHONES_CONFIG` → 이 폴더의 `phones.json` → `~/.shorts/phones.json`
+
+터미널마다 다른 점은 **`--label`(머리글)과 `--send`(받을 폰)** 뿐입니다.
+
+```bash
+# 터미널 2 (폰2 계정용 영상)
+python src/make.py ... --title "..." --desc-file 설명.txt --send 폰2 --label "폰2"
+```
+
+- 폰마다 텔레그램 계정이 다르면 `--send 폰2` 로 그 폰에만 갑니다.
+- 폰 5대가 **한 계정**이면 메시지가 모든 폰에 뜨므로, `--label` 머리글(`━━ 폰2 ━━`)을 보고
+  자기 묶음만 복사하면 됩니다.
+
 - Claude Code 에게는 이렇게 말하면 됩니다:
   *"영상 만들고 제목이랑 설명 써서 `--send` 로 폰에 보내줘"*
 
