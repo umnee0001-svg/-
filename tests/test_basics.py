@@ -8,6 +8,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import filters  # noqa: E402
 import preset as preset_mod  # noqa: E402
+import send_phone  # noqa: E402
 import subtitles as sub  # noqa: E402
 
 
@@ -311,6 +312,32 @@ class TestFilters(unittest.TestCase):
         self.assertEqual(cmd[cmd.index("-ss") + 1], "3.000")
         # 입력에서는 5s * 2.0 = 10s 를 읽어야 2배속 후 5s 가 된다.
         self.assertIn("10.000", cmd)
+
+
+class TestSendPhone(unittest.TestCase):
+    def test_title_is_escaped_inline_code(self):
+        self.assertEqual(send_phone.title_message("A<B> & 꿀팁"),
+                         "<code>A&lt;B&gt; &amp; 꿀팁</code>")
+
+    def test_short_desc_is_one_pre_block(self):
+        msgs = send_phone.desc_messages("첫 줄\n#쇼츠 #꿀팁")
+        self.assertEqual(msgs, ["<pre>첫 줄\n#쇼츠 #꿀팁</pre>"])
+
+    def test_long_desc_is_split_under_limit(self):
+        desc = "\n".join("가" * 300 for _ in range(40)) + "\n" + "나" * 9000
+        msgs = send_phone.desc_messages(desc)
+        self.assertGreater(len(msgs), 1)
+        for m in msgs:
+            self.assertLessEqual(len(m), send_phone.TEXT_LIMIT)
+        joined = "".join(m[5:-6] for m in msgs).replace("\n", "")
+        self.assertEqual(joined, desc.replace("\n", ""))
+
+    def test_select_chats(self):
+        chats = {"폰1": "1", "폰2": "2", "폰3": "3"}
+        self.assertEqual(send_phone.select_chats(chats, None), chats)
+        self.assertEqual(send_phone.select_chats(chats, "폰1, 폰3"), {"폰1": "1", "폰3": "3"})
+        with self.assertRaises(send_phone.SendError):
+            send_phone.select_chats(chats, "폰9")
 
 
 if __name__ == "__main__":

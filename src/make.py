@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import filters  # noqa: E402
 import preset as preset_mod  # noqa: E402
+import send_phone  # noqa: E402
 import source as source_mod  # noqa: E402
 import subtitles as sub_mod  # noqa: E402
 from probe import probe, require_tool  # noqa: E402
@@ -117,7 +118,16 @@ def main(argv: list[str] | None = None) -> int:
                         metavar="경로=값", help="프리셋 항목 즉석 변경 (예: subtitle.font_size=90)")
     parser.add_argument("--no-subs", action="store_true", help="이번 실행만 자막 끄기")
     parser.add_argument("--dry-run", action="store_true", help="ffmpeg 명령만 출력하고 끝")
+    parser.add_argument("--title", default="", help="업로드용 제목 (--send 와 함께)")
+    parser.add_argument("--desc", default="", help="업로드용 설명 (--send 와 함께)")
+    parser.add_argument("--desc-file", type=Path, help="업로드용 설명 텍스트 파일")
+    parser.add_argument("--send", nargs="?", const="", metavar="폰1,폰2",
+                        help="완성 후 텔레그램으로 폰에 전송 (이름을 주면 그 폰에만)")
     args = parser.parse_args(argv)
+
+    desc = args.desc_file.read_text(encoding="utf-8").strip() if args.desc_file else args.desc
+    if args.send is not None and not args.dry_run:
+        send_phone.load_config()   # 렌더링 전에 설정 오류를 먼저 잡는다
 
     require_tool("ffmpeg")
     require_tool("ffprobe")
@@ -208,6 +218,18 @@ def main(argv: list[str] | None = None) -> int:
     result = probe(str(out_path))
     print(f"\n완료: {out_path}  ({result.width}x{result.height}, {result.duration:.1f}s, "
           f"{out_path.stat().st_size / 1024 / 1024:.1f}MB)")
+
+    if args.title or desc:
+        # 폰으로 못 보내도 PC 에서 복사할 수 있게 영상 옆에 남겨둔다
+        out_path.with_suffix(".txt").write_text(
+            f"{args.title}\n\n{desc}\n".lstrip("\n"), encoding="utf-8")
+
+    if args.send is not None:
+        print("\n폰으로 전송")
+        failed = send_phone.send(title=args.title, desc=desc, video=out_path,
+                                 only=args.send or None)
+        if failed:
+            return 1
     return 0
 
 
@@ -218,7 +240,7 @@ def _quote(part: str) -> str:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except (preset_mod.PresetError, sub_mod.SubtitleError,
+    except (preset_mod.PresetError, sub_mod.SubtitleError, send_phone.SendError,
             FileNotFoundError, RuntimeError) as exc:
         print(f"\n오류: {exc}", file=sys.stderr)
         sys.exit(1)

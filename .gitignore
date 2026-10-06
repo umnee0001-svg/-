@@ -12,6 +12,9 @@ assets/watermark/*
 samples/*
 !samples/.gitkeep
 
+# 텔레그램 봇 토큰 (절대 커밋 금지)
+phones.json
+
 # 파이썬
 __pycache__/
 *.py[cod]
