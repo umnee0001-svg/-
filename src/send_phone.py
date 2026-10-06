@@ -2,7 +2,7 @@
 """완성된 영상 + 제목 + 설명을 텔레그램으로 여러 폰에 보낸다.
 
 폰마다 메시지 3개가 도착한다.
-    1) 영상 파일        → 폰에 저장해서 업로드
+    1) 영상 파일        → 원본 그대로(재압축 없음). 폰에 저장해서 업로드
     2) 제목             → 탭 한 번에 복사
     3) 설명             → 블록 우측 상단 '복사' 버튼
 
@@ -160,9 +160,10 @@ def send(*, title: str = "", desc: str = "", video: Path | None = None,
     for name, chat_id in chats.items():
         try:
             if send_video:
-                _call(token, "sendVideo", fields={"chat_id": chat_id,
-                      "supports_streaming": "true"},
-                      file_field="video", file_path=video, timeout=300)
+                # sendVideo 가 아니라 '파일'로 보내야 화질·용량이 원본 그대로 유지된다
+                _call(token, "sendDocument", fields={"chat_id": chat_id,
+                      "disable_content_type_detection": "true"},
+                      file_field="document", file_path=video, timeout=300)
             if title:
                 _call(token, "sendMessage", fields={"chat_id": chat_id,
                       "text": title_message(title), "parse_mode": "HTML"})

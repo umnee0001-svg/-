@@ -123,6 +123,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--desc-file", type=Path, help="업로드용 설명 텍스트 파일")
     parser.add_argument("--send", nargs="?", const="", metavar="폰1,폰2",
                         help="완성 후 텔레그램으로 폰에 전송 (이름을 주면 그 폰에만)")
+    parser.add_argument("--send-text-only", action="store_true",
+                        help="--send 때 영상은 빼고 제목·설명만 (영상은 MYBOX 등으로 옮길 때)")
     args = parser.parse_args(argv)
 
     desc = args.desc_file.read_text(encoding="utf-8").strip() if args.desc_file else args.desc
@@ -226,7 +228,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.send is not None:
         print("\n폰으로 전송")
-        failed = send_phone.send(title=args.title, desc=desc, video=out_path,
+        failed = send_phone.send(title=args.title, desc=desc,
+                                 video=None if args.send_text_only else out_path,
                                  only=args.send or None)
         if failed:
             return 1
