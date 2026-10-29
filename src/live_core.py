@@ -39,9 +39,6 @@ RESTART_GAP = 120
 
 DEFAULT_SETTINGS = {"resolution": "1080p", "max_live": 3, "cover": None}
 
-NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-
-
 def new_id() -> str:
     return uuid.uuid4().hex[:10]
 
@@ -122,15 +119,18 @@ def build_stream_cmd(path: str, url: str) -> list[str]:
 
 
 def _popen(cmd: list[str], **kwargs) -> subprocess.Popen:
-    return subprocess.Popen(cmd, stdin=subprocess.DEVNULL, creationflags=NO_WINDOW,
+    # 일부러 CREATE_NO_WINDOW 를 쓰지 않는다: ffmpeg 가 프로그램의 콘솔 창에 묶여 있어야
+    # 사용자가 창을 닫을 때 같이 종료된다. (떠돌이 ffmpeg 가 남으면 재실행 시 이중 송출)
+    return subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
                             text=True, encoding="utf-8", errors="replace", **kwargs)
 
 
 def _drain(stream, sink: deque) -> None:
-    for line in stream:
-        line = line.strip()
-        if line:
-            sink.append(line)
+    with stream:
+        for line in stream:
+            line = line.strip()
+            if line:
+                sink.append(line)
 
 
 def _stop_proc(proc: subprocess.Popen) -> None:
@@ -379,10 +379,11 @@ class Manager:
                 errors: deque = deque(maxlen=20)
                 reader = threading.Thread(target=_drain, args=(proc.stderr, errors), daemon=True)
                 reader.start()
-                for line in proc.stdout:
-                    key, _, value = line.strip().partition("=")
-                    if key == "out_time_us" and value.isdigit() and info.duration > 0:
-                        record["progress"] = min(0.99, int(value) / 1e6 / info.duration)
+                with proc.stdout:
+                    for line in proc.stdout:
+                        key, _, value = line.strip().partition("=")
+                        if key == "out_time_us" and value.isdigit() and info.duration > 0:
+                            record["progress"] = min(0.99, int(value) / 1e6 / info.duration)
                 proc.wait()
                 reader.join(2)
                 if proc.returncode != 0:

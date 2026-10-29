@@ -7,6 +7,9 @@
 python src/make.py --preset presets/default.json --input 내영상.mp4
 ```
 
+> **24시간 라이브 송출기**도 들어 있습니다. 만든 영상을 YouTube 라이브로 끝없이 반복 송출하는 Windows용 프로그램이며,
+> `LiveLoop.bat` 을 더블클릭하면 열립니다. 사용법은 [LIVE.md](LIVE.md) 를 보세요.
+
 자동으로 처리되는 것:
 
 | 단계 | 내용 |

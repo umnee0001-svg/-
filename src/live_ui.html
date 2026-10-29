@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>24시간 라이브 송출기</title>
+<style>
+  :root {
+    --bg: #0b0b10; --panel: #13131b; --card: #181823; --line: #2a2a38; --line-strong: #3a3a4c;
+    --text: #f2f2f7; --muted: #9a9aae; --faint: #6c6c80;
+    --accent: #a855f7; --accent-2: #7c3aed; --live: #e11d48; --warn: #f59e0b; --ok: #22c55e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 14px/1.5 "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+    display: flex; flex-direction: column;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: .45; }
+
+  header {
+    display: flex; align-items: center; gap: 12px; padding: 12px 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; }
+  .logo-mark {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: conic-gradient(var(--live), var(--accent), var(--live));
+    display: grid; place-items: center;
+  }
+  .logo-mark::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--bg); }
+  .spacer { flex: 1; }
+  .ghost-btn {
+    background: transparent; border: 1px solid var(--line-strong); border-radius: 999px;
+    padding: 6px 14px;
+  }
+  .ghost-btn:hover { border-color: var(--accent); }
+
+  .banner {
+    margin: 12px 20px 0; padding: 10px 14px; border-radius: 10px;
+    background: #3b1d0b; border: 1px solid #7c3a12; color: #fed7aa;
+  }
+
+  main {
+    flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px;
+    padding: 20px; min-height: 0; overflow: auto;
+  }
+  @media (max-width: 860px) {
+    main { grid-template-columns: 1fr; padding: 16px; }
+    .item { flex-wrap: wrap; }
+    .lives { width: 100%; align-items: stretch; }
+    .live-row { justify-content: flex-end; }
+    #footer-path { display: none; }
+  }
+
+  .drop {
+    border: 2px dashed #4b3a7a; border-radius: 14px; padding: 26px 16px; text-align: center;
+    background: #11101a; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .drop.over, .drop:hover { border-color: var(--accent); background: #171328; }
+  .drop h2 { margin: 0 0 6px; font-size: 16px; }
+  .drop p { margin: 0; color: var(--muted); }
+  .drop small { color: var(--faint); }
+  .upload-progress { margin-top: 10px; color: var(--accent); font-size: 13px; min-height: 20px; }
+
+  .section-head {
+    display: flex; justify-content: space-between; margin: 18px 2px 8px; color: var(--muted); font-size: 13px;
+  }
+  .library { display: flex; flex-direction: column; gap: 8px; }
+  .item {
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px; cursor: pointer;
+  }
+  .item:hover { border-color: var(--line-strong); }
+  .item.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .item.disabled { cursor: default; }
+  .item-main { flex: 1; min-width: 0; }
+  .item-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .item-sub.err { color: #fda4af; }
+  .bar { height: 4px; background: var(--line); border-radius: 4px; margin-top: 6px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--accent); transition: width .4s; }
+  .lives { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+  .live-row { display: flex; align-items: center; gap: 6px; }
+  .live-ch { color: var(--muted); font-size: 12px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 6px;
+    font-size: 11px; font-weight: 700; letter-spacing: .02em; white-space: nowrap;
+  }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.live { background: var(--live); color: #fff; }
+  .pill.live::before { background: #fff; animation: blink 1.4s infinite; }
+  .pill.starting { background: #312e81; color: #c7d2fe; }
+  .pill.reconnecting, .pill.restarting { background: #451a03; color: #fcd34d; }
+  .pill.stopped { background: #27272a; color: #a1a1aa; }
+  @keyframes blink { 50% { opacity: .2; } }
+  .stop-btn {
+    background: transparent; border: 1px solid #7f1d3a; color: #fecdd3; border-radius: 8px; padding: 4px 12px;
+  }
+  .stop-btn:hover { background: #3f0d1d; }
+  .icon-btn {
+    background: transparent; border: 0; color: var(--faint); font-size: 18px; padding: 0 4px; line-height: 1;
+  }
+  .icon-btn:hover { color: #fda4af; }
+  .empty { color: var(--faint); text-align: center; padding: 30px 0; }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px;
+    display: flex; flex-direction: column; gap: 6px; align-self: start;
+  }
+  .panel h3 { margin: 0 0 10px; font-size: 16px; }
+  .label { color: var(--muted); font-size: 13px; margin-top: 12px; }
+  select, input[type=text], input[type=password], input[type=number] {
+    width: 100%; background: var(--card); border: 1px solid var(--line-strong); border-radius: 10px;
+    padding: 10px 12px; outline: none;
+  }
+  select:focus, input:focus { border-color: var(--accent); }
+  .link { background: none; border: 0; color: #c4b5fd; padding: 2px 0; font-size: 13px; text-align: left; }
+  .link:hover { text-decoration: underline; }
+  .file-box {
+    background: var(--card); border: 1px solid var(--line-strong); border-radius: 10px; padding: 10px 12px;
+  }
+  .file-box b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-box span { color: var(--muted); font-size: 12px; }
+  .mode {
+    display: block; width: 100%; text-align: left; background: var(--card);
+    border: 1px solid var(--line-strong); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px;
+  }
+  .mode.on { border-color: var(--accent); background: #1d1730; }
+  .mode b { display: block; }
+  .mode span { color: var(--muted); font-size: 12px; }
+  .tag { font-size: 11px; background: #3b2a6b; color: #ddd6fe; border-radius: 5px; padding: 1px 6px; margin-left: 4px; }
+  .hint { color: var(--faint); font-size: 12px; margin-top: 8px; }
+  .start-btn {
+    margin-top: 16px; border: 0; border-radius: 12px; padding: 14px; font-weight: 700; font-size: 16px;
+    background: linear-gradient(90deg, var(--accent-2), #c026d3); color: #fff;
+  }
+  .error { color: #fda4af; font-size: 13px; min-height: 18px; margin-top: 6px; }
+
+  footer {
+    display: flex; align-items: center; gap: 10px; padding: 10px 20px; border-top: 1px solid var(--line);
+    font-size: 13px; color: var(--muted);
+  }
+  footer .summary { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #footer-path { max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  dialog {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line-strong); border-radius: 16px;
+    padding: 22px; width: min(440px, calc(100vw - 32px));
+  }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  dialog h3 { margin: 0 0 4px; }
+  dialog .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+  .primary { background: var(--accent-2); border: 0; border-radius: 10px; padding: 8px 16px; font-weight: 600; }
+  .secondary { background: transparent; border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 16px; }
+  .ch-list { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+  .ch-item { display: flex; align-items: center; gap: 8px; background: var(--card); border-radius: 8px; padding: 8px 10px; }
+  .ch-item span { flex: 1; }
+  .ch-item small { color: var(--faint); }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; margin-top: 12px; }
+  ol.steps { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><span class="logo-mark"></span>24시간 라이브 송출기</div>
+  <div class="spacer"></div>
+  <button class="ghost-btn" id="open-settings">⚙ 설정</button>
+</header>
+<div class="banner" id="ffmpeg-banner" hidden>
+  ffmpeg 를 찾을 수 없습니다. 명령 프롬프트에서 <b>winget install Gyan.FFmpeg</b> 를 실행한 뒤 이 프로그램을 다시 켜 주세요.
+</div>
+
+<main>
+  <section>
+    <div class="drop" id="drop" tabindex="0">
+      <h2>새 파일 올리기</h2>
+      <p>여기에 끌어다 놓거나 클릭 · mp4 · mov · mkv · mp3 · wav · flac</p>
+      <small>송출 규격 변환 · 음량 맞춤 자동</small>
+      <div class="upload-progress" id="upload-progress"></div>
+      <input type="file" id="file-input" multiple hidden
+             accept=".mp4,.mov,.mkv,.avi,.webm,.m4v,.flv,.ts,.wmv,.mp3,.wav,.flac,.m4a,.aac,.ogg,.opus">
+    </div>
+    <div class="section-head"><span>보관함 — 골라서 바로 방송</span><span id="file-count">0 개</span></div>
+    <div class="library" id="library"></div>
+  </section>
+
+  <aside class="panel">
+    <h3>방송 설정</h3>
+    <div class="label">채널</div>
+    <select id="channel"></select>
+    <button class="link" id="open-channels">+ 채널 연결</button>
+
+    <div class="label">파일</div>
+    <div class="file-box" id="file-box"><b>아직 없음</b><span>새 파일을 올리거나 보관함에서 고르세요</span></div>
+
+    <div class="label">방식</div>
+    <button class="mode on" data-mode="keep"><b>URL 유지 <span class="tag">권장</span></b><span>한 방송으로 계속 · 링크·시청자 유지</span></button>
+    <button class="mode" data-mode="restart12"><b>12시간마다 재시작</b><span>다시보기 저장 · 링크 바뀜</span></button>
+
+    <p class="hint">방송 제목·설명·공개 범위는 YouTube Studio → 라이브 스트리밍에서 정해 두면 그대로 적용됩니다.</p>
+    <button class="start-btn" id="start" disabled>방송 시작</button>
+    <div class="error" id="start-error"></div>
+  </aside>
+</main>
+
+<footer>
+  <span class="pill stopped" id="footer-pill">OFF</span>
+  <span class="summary" id="footer-summary">송출 중인 방송이 없습니다</span>
+  <span id="footer-path"></span>
+</footer>
+
+<dialog id="channels-dialog">
+  <h3>채널 연결</h3>
+  <div class="label">채널 이름 (내가 알아볼 이름)</div>
+  <input type="text" id="ch-name" placeholder="예: PUNKMAMA 슬롯1">
+  <div class="label">스트림 키</div>
+  <input type="password" id="ch-key" placeholder="xxxx-xxxx-xxxx-xxxx-xxxx" autocomplete="off">
+  <details>
+    <summary>스트림 키는 어디서 받나요?</summary>
+    <ol class="steps">
+      <li>YouTube Studio → 오른쪽 위 <b>만들기</b> → <b>라이브 스트리밍 시작</b></li>
+      <li>왼쪽 <b>스트림</b> 탭 → <b>스트림 키</b> 복사</li>
+      <li>여러 방송을 동시에 하려면 <b>스트림 키 선택 → 새 스트림 키 만들기</b>로 키를 여러 개 만드세요</li>
+    </ol>
+  </details>
+  <details>
+    <summary>고급: 서버 주소</summary>
+    <input type="text" id="ch-server" style="margin-top:8px" value="rtmp://a.rtmp.youtube.com/live2">
+  </details>
+  <div class="error" id="ch-error"></div>
+  <div class="row">
+    <button class="secondary" data-close>닫기</button>
+    <button class="primary" id="ch-add">추가</button>
+  </div>
+  <div class="ch-list" id="ch-list"></div>
+</dialog>
+
+<dialog id="settings-dialog">
+  <h3>설정</h3>
+  <div class="label">변환 해상도 (새로 올리는 파일부터 적용)</div>
+  <select id="set-resolution">
+    <option value="1080p">가로 1080p (1920×1080) · 업로드 약 5Mbps</option>
+    <option value="720p">가로 720p (1280×720) · 업로드 약 3Mbps</option>
+    <option value="vertical">세로 1080×1920 (쇼츠형) · 업로드 약 5Mbps</option>
+  </select>
+  <div class="label">최대 동시 송출 수</div>
+  <input type="number" id="set-max" min="1" max="10">
+  <div class="label">음원 파일용 커버 이미지 <span id="cover-state"></span></div>
+  <input type="file" id="cover-input" accept=".png,.jpg,.jpeg,.webp,.bmp">
+  <p class="hint">mp3 · wav 같은 음원을 올리면 이 이미지를 화면에 깔고 방송합니다. 없으면 검은 화면입니다.</p>
+  <div class="error" id="set-error"></div>
+  <div class="row">
+    <button class="secondary" data-close>닫기</button>
+    <button class="primary" id="set-save">저장</button>
+  </div>
+</dialog>
+
+<script>
+const $ = (sel) => document.querySelector(sel);
+const STATUS_LABEL = { live: "LIVE", starting: "연결 중", reconnecting: "재접속 대기", restarting: "재시작 대기", stopped: "멈춤" };
+let state = null;
+let selectedFile = null;
+let mode = "keep";
+let lastChannelsJson = "";
+
+function load(key) { try { return localStorage.getItem(key); } catch { return null; } }
+function store(key, value) { try { localStorage.setItem(key, value); } catch {} }
+
+function esc(text) {
+  return String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function hms(sec) {
+  sec = Math.floor(sec || 0);
+  const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s).padStart(2, "0");
+}
+function uptime(sec) {
+  const d = Math.floor(sec / 86400);
+  return (d ? d + "일 " : "") + hms(sec % 86400);
+}
+
+async function api(method, path, body) {
+  const res = await fetch(path, {
+    method,
+    headers: { "X-LiveLoop": "1", "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "요청 실패 (" + res.status + ")");
+  return data;
+}
+
+async function refresh() {
+  try {
+    const res = await fetch("/api/state");
+    state = await res.json();
+    render();
+  } catch {
+    $("#footer-summary").textContent = "프로그램과 연결이 끊겼습니다. 검은 창(프로그램)이 켜져 있는지 확인하세요.";
+  }
+}
+
+function render() {
+  $("#ffmpeg-banner").hidden = state.ffmpeg_ok;
+  renderChannels();
+  renderLibrary();
+  renderPanel();
+  renderFooter();
+}
+
+function renderChannels() {
+  const json = JSON.stringify(state.channels);
+  if (json === lastChannelsJson) return;
+  lastChannelsJson = json;
+  const select = $("#channel");
+  const keep = select.value || load("channel");
+  select.innerHTML = state.channels.length
+    ? state.channels.map((c) => `<option value="${c.id}">${esc(c.name)}  (${esc(c.key_hint)})</option>`).join("")
+    : `<option value="">먼저 채널을 연결하세요</option>`;
+  if (state.channels.some((c) => c.id === keep)) select.value = keep;
+
+  $("#ch-list").innerHTML = state.channels.map((c) => `
+    <div class="ch-item"><span>${esc(c.name)} <small>${esc(c.key_hint)}</small></span>
+      <button class="icon-btn" title="채널 삭제" data-del-channel="${c.id}">×</button></div>`).join("");
+}
+
+function renderLibrary() {
+  const files = state.files;
+  $("#file-count").textContent = files.length + " 개";
+  if (selectedFile && !files.some((f) => f.id === selectedFile && f.status === "ready")) selectedFile = null;
+
+  if (!files.length) {
+    $("#library").innerHTML = `<div class="empty">아직 올린 파일이 없습니다</div>`;
+    return;
+  }
+  $("#library").innerHTML = files.map((f) => {
+    const lives = state.broadcasts.filter((b) => b.file_id === f.id);
+    let sub;
+    if (f.status === "converting") {
+      sub = `<div class="item-sub">변환 중 ${Math.round(f.progress * 100)}%</div>
+             <div class="bar"><i style="width:${Math.round(f.progress * 100)}%"></i></div>`;
+    } else if (f.status === "error") {
+      sub = `<div class="item-sub err">${esc(f.error)}</div>`;
+    } else {
+      const res = { "1080p": "1080p", "720p": "720p", vertical: "세로" }[f.resolution] || f.resolution;
+      sub = `<div class="item-sub">${hms(f.duration)} · ${res} · ${lives.length ? lives.length + "개 채널 송출 중" : "방송 준비 완료"}</div>`;
+    }
+    const liveHtml = lives.map((b) => {
+      let label = STATUS_LABEL[b.status] || b.status;
+      if (b.retry_in != null && b.status !== "live") label += " " + Math.ceil(b.retry_in) + "초";
+      const title = b.last_error ? ` title="${esc(b.last_error)}"` : "";
+      return `<div class="live-row">
+          <span class="live-ch">${esc(b.channel)} · ${uptime(b.uptime)}</span>
+          <span class="pill ${b.status}"${title}>${esc(label)}</span>
+          <button class="stop-btn" data-stop="${b.id}">중지</button></div>`;
+    }).join("");
+    const canDelete = f.status !== "converting" && !lives.length;
+    const cls = ["item", f.id === selectedFile ? "selected" : "", f.status !== "ready" ? "disabled" : ""].join(" ");
+    return `<div class="${cls}" data-file="${f.id}">
+        <div class="item-main"><div class="item-name" title="${esc(f.name)}">${esc(f.name)}</div>${sub}</div>
+        ${liveHtml ? `<div class="lives">${liveHtml}</div>` : ""}
+        ${canDelete ? `<button class="icon-btn" title="보관함에서 삭제" data-del-file="${f.id}">×</button>` : ""}
+      </div>`;
+  }).join("");
+}
+
+function renderPanel() {
+  const f = state.files.find((x) => x.id === selectedFile);
+  $("#file-box").innerHTML = f
+    ? `<b>${esc(f.name)}</b><span>${hms(f.duration)} 길이 · 끝나면 처음부터 계속 반복</span>`
+    : `<b>아직 없음</b><span>새 파일을 올리거나 보관함에서 고르세요</span>`;
+  document.querySelectorAll(".mode").forEach((el) => el.classList.toggle("on", el.dataset.mode === mode));
+  $("#start").disabled = !(f && $("#channel").value && state.ffmpeg_ok);
+}
+
+function renderFooter() {
+  const bs = state.broadcasts;
+  const liveCount = bs.filter((b) => b.status === "live").length;
+  const pill = $("#footer-pill");
+  pill.className = "pill " + (liveCount ? "live" : bs.length ? "reconnecting" : "stopped");
+  pill.textContent = liveCount ? "LIVE" : bs.length ? "대기" : "OFF";
+  $("#footer-summary").textContent = bs.length
+    ? bs.map((b) => `${b.file} → ${b.channel} ${STATUS_LABEL[b.status] || b.status}`).join(" · ")
+      + ` · 동시 송출 ${bs.length} / ${state.settings.max_live}`
+    : "송출 중인 방송이 없습니다";
+  $("#footer-path").textContent = state.data_dir;
+}
+
+// ---- 업로드 ----------------------------------------------------------------
+const drop = $("#drop");
+const fileInput = $("#file-input");
+drop.addEventListener("click", () => fileInput.click());
+drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") fileInput.click(); });
+drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", (e) => {
+  e.preventDefault(); drop.classList.remove("over");
+  uploadAll([...e.dataTransfer.files]);
+});
+fileInput.addEventListener("change", () => { uploadAll([...fileInput.files]); fileInput.value = ""; });
+
+function uploadOne(file, path, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", path + "?name=" + encodeURIComponent(file.name));
+    xhr.setRequestHeader("X-LiveLoop", "1");
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress && onProgress(e.loaded / e.total);
+    xhr.onload = () => {
+      let data = {};
+      try { data = JSON.parse(xhr.responseText); } catch {}
+      xhr.status === 200 ? resolve(data) : reject(new Error(data.error || "업로드 실패"));
+    };
+    xhr.onerror = () => reject(new Error("업로드 중 연결이 끊겼습니다."));
+    xhr.send(file);
+  });
+}
+
+async function uploadAll(files) {
+  const out = $("#upload-progress");
+  const errors = [];
+  for (const [i, file] of files.entries()) {
+    try {
+      await uploadOne(file, "/api/upload", (p) => {
+        out.textContent = `올리는 중 (${i + 1}/${files.length}) ${file.name} · ${Math.round(p * 100)}%`;
+      });
+    } catch (err) {
+      errors.push(file.name + ": " + err.message);
+    }
+    refresh();
+  }
+  out.textContent = errors.join(" / ");
+}
+
+// ---- 보관함 / 방송 --------------------------------------------------------
+$("#library").addEventListener("click", async (e) => {
+  const stop = e.target.closest("[data-stop]");
+  const del = e.target.closest("[data-del-file]");
+  const item = e.target.closest("[data-file]");
+  try {
+    if (stop) {
+      if (!confirm("이 방송을 중지할까요?")) return;
+      stop.disabled = true;
+      await api("POST", `/api/broadcasts/${stop.dataset.stop}/stop`);
+    } else if (del) {
+      if (!confirm("보관함에서 이 파일을 지울까요? (변환된 파일이 삭제됩니다)")) return;
+      await api("DELETE", `/api/files/${del.dataset.delFile}`);
+    } else if (item) {
+      const f = state.files.find((x) => x.id === item.dataset.file);
+      if (f && f.status === "ready") { selectedFile = f.id; $("#start-error").textContent = ""; }
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+  refresh();
+});
+
+$("#channel").addEventListener("change", () => {
+  store("channel", $("#channel").value);
+  $("#start-error").textContent = "";
+  renderPanel();
+});
+document.querySelectorAll(".mode").forEach((el) => el.addEventListener("click", () => {
+  mode = el.dataset.mode; store("mode", mode); renderPanel();
+}));
+
+$("#start").addEventListener("click", async () => {
+  const btn = $("#start");
+  btn.disabled = true;
+  $("#start-error").textContent = "";
+  try {
+    await api("POST", "/api/broadcasts", { channel_id: $("#channel").value, file_id: selectedFile, mode });
+  } catch (err) {
+    $("#start-error").textContent = err.message;
+  }
+  refresh();
+});
+
+// ---- 채널 대화상자 ----------------------------------------------------------
+$("#open-channels").addEventListener("click", () => { $("#ch-error").textContent = ""; $("#channels-dialog").showModal(); });
+$("#ch-add").addEventListener("click", async () => {
+  try {
+    const { id } = await api("POST", "/api/channels", {
+      name: $("#ch-name").value, key: $("#ch-key").value, server: $("#ch-server").value,
+    });
+    $("#ch-name").value = ""; $("#ch-key").value = ""; $("#ch-error").textContent = "";
+    store("channel", id);
+    $("#channel").value = "";
+    await refresh();
+    $("#channel").value = id;
+    renderPanel();
+  } catch (err) {
+    $("#ch-error").textContent = err.message;
+  }
+});
+$("#ch-list").addEventListener("click", async (e) => {
+  const del = e.target.closest("[data-del-channel]");
+  if (!del || !confirm("이 채널(스트림 키)을 지울까요?")) return;
+  try { await api("DELETE", `/api/channels/${del.dataset.delChannel}`); }
+  catch (err) { $("#ch-error").textContent = err.message; }
+  refresh();
+});
+
+// ---- 설정 대화상자 ----------------------------------------------------------
+$("#open-settings").addEventListener("click", () => {
+  $("#set-resolution").value = state.settings.resolution;
+  $("#set-max").value = state.settings.max_live;
+  $("#cover-state").textContent = state.settings.cover ? "· 등록됨" : "· 없음";
+  $("#set-error").textContent = "";
+  $("#settings-dialog").showModal();
+});
+$("#set-save").addEventListener("click", async () => {
+  try {
+    await api("POST", "/api/settings", {
+      resolution: $("#set-resolution").value, max_live: Number($("#set-max").value),
+    });
+    const cover = $("#cover-input").files[0];
+    if (cover) await uploadOne(cover, "/api/cover");
+    $("#cover-input").value = "";
+    $("#settings-dialog").close();
+  } catch (err) {
+    $("#set-error").textContent = err.message;
+  }
+  refresh();
+});
+
+document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
+
+mode = load("mode") === "restart12" ? "restart12" : "keep";
+refresh();
+setInterval(refresh, 1500);
+</script>
+</body>
+</html>

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import signal
 import sys
 import threading
 import webbrowser
@@ -129,6 +130,10 @@ def make_handler(manager: Manager, port: int):
     return Handler
 
 
+def _graceful_exit(signum, frame):
+    raise KeyboardInterrupt
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="live_app.py", description="24시간 라이브 송출기")
     parser.add_argument("--data", default=str(Path.home() / "LiveLoop"),
@@ -156,6 +161,11 @@ def main(argv: list[str] | None = None) -> int:
     print("=" * 56)
     if not manager.ffmpeg_ok:
         print("!! ffmpeg 를 찾을 수 없습니다.  winget install Gyan.FFmpeg  후 다시 켜 주세요.")
+
+    # 종료 신호(Windows 에서 창 닫기 = SIGBREAK)도 Ctrl+C 처럼 정리하고 끝낸다.
+    for name in ("SIGTERM", "SIGBREAK"):
+        if hasattr(signal, name):
+            signal.signal(getattr(signal, name), _graceful_exit)
 
     manager.resume()
     if not args.no_browser:
