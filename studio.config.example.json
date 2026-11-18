@@ -1,0 +1,9 @@
+{
+  "upload": {
+    "command": [],
+    "working_dir": null
+  },
+  "defaults": {
+    "privacy": "private"
+  }
+}

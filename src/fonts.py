@@ -106,10 +106,31 @@ def match_file(font_name: str | None, lang: str | None = None) -> str | None:
     return path if proc.returncode == 0 and path and Path(path).is_file() else None
 
 
+_WINDOWS_FONTS = {
+    # 윈도우에 기본으로 깔려 있는 폰트 (굵은 것 우선)
+    "ko": ["malgunbd.ttf", "malgun.ttf"],
+    "ja": ["YuGothB.ttc", "meiryob.ttc", "msgothic.ttc"],
+    None: ["malgunbd.ttf", "arialbd.ttf", "arial.ttf"],
+}
+
+
+def windows_fallback(lang: str | None) -> str | None:
+    """윈도우에는 fc-match 가 없으므로 기본 폰트 폴더에서 직접 찾는다."""
+    import os
+
+    if os.name != "nt":
+        return None
+    font_dir = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
+    for name in _WINDOWS_FONTS.get(lang, []) + _WINDOWS_FONTS[None]:
+        if (font_dir / name).is_file():
+            return str(font_dir / name)
+    return None
+
+
 def drawtext_font_args(font_file: str | None, font_name: str | None,
                        lang: str | None) -> str:
     """drawtext 에 넘길 폰트 인자 한 조각 ('fontfile=...' 또는 'font=...')."""
-    resolved = font_file or match_file(font_name, lang)
+    resolved = font_file or match_file(font_name, lang) or windows_fallback(lang)
     if resolved:
         return "fontfile=" + str(Path(resolved).resolve())
     return "font=" + (font_name or "Sans")

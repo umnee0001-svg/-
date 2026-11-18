@@ -18,8 +18,9 @@ class TestPreset(unittest.TestCase):
         for path in found:
             with self.subTest(preset=path.name):
                 cfg = preset_mod.load(path)
-                self.assertEqual(cfg["output"]["width"], 1080)
-                self.assertEqual(cfg["output"]["height"], 1920)
+                size = (cfg["output"]["width"], cfg["output"]["height"])
+                # 세로 쇼츠 또는 가로 롱폼
+                self.assertIn(size, [(1080, 1920), (1920, 1080)])
 
     def test_partial_preset_is_filled_with_defaults(self):
         cfg = preset_mod._deep_merge(preset_mod.DEFAULTS, {"subtitle": {"font_size": 99}})
@@ -311,6 +312,72 @@ class TestFilters(unittest.TestCase):
         self.assertEqual(cmd[cmd.index("-ss") + 1], "3.000")
         # 입력에서는 5s * 2.0 = 10s 를 읽어야 2배속 후 5s 가 된다.
         self.assertIn("10.000", cmd)
+
+
+class TestThumbnail(unittest.TestCase):
+    def test_parse_lines_marks_accent_and_drops_blank(self):
+        import thumbnail
+        self.assertEqual(thumbnail.parse_lines("첫 줄\\n\n!강조 줄\n  "),
+                         [("첫 줄", False), ("강조 줄", True)])
+
+    def test_long_line_shrinks_font(self):
+        import thumbnail
+        lines = [("아주아주 긴 제목이 들어가면 자동으로 글자가 작아집니다", False)]
+        self.assertLess(thumbnail.fit_font_size(lines, 120, 1140), 120)
+        self.assertEqual(thumbnail.fit_font_size([("짧은 제목", False)], 120, 1140), 120)
+
+    def test_filter_has_one_drawtext_per_line(self):
+        import thumbnail
+        style = thumbnail.ThumbStyle(font_file="/fonts/x.ttf")
+        vf = thumbnail.build_filter([("a", False), ("b", True)], style, ["/t/0.txt", "/t/1.txt"])
+        self.assertEqual(vf.count("drawtext="), 2)
+        self.assertIn("scale=1280:720", vf)
+        self.assertIn("0xFFE600", vf)   # 두 번째 줄은 강조색
+
+
+class TestUploader(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        import uploader
+        self.up = uploader
+        self.tmp = Path(tempfile.mkdtemp())
+        self.video = self.tmp / "v.mp4"
+        self.video.write_bytes(b"x")
+
+    def info(self, **kw):
+        base = dict(video=str(self.video), title="제목", description="설명")
+        base.update(kw)
+        return self.up.UploadInfo(**base)
+
+    def test_parse_tags(self):
+        self.assertEqual(self.up.parse_tags("a, #b,a,, c"), ["a", "b", "c"])
+
+    def test_validate_rejects_bad_title(self):
+        with self.assertRaises(self.up.UploadError):
+            self.info(title="").validate()
+        with self.assertRaises(self.up.UploadError):
+            self.info(title="x" * 101).validate()
+        with self.assertRaises(self.up.UploadError):
+            self.info(title="<b>").validate()
+
+    def test_command_fills_placeholders_and_drops_empty_options(self):
+        info = self.info(tags=["a", "b"])
+        files = self.up.write_package(info)
+        cmd = self.up.build_command(
+            [sys.executable, "upload", "{video}", "--title", "{title}",
+             "--thumbnail", "{thumbnail}", "--tags", "{tags}"], info, files)
+        self.assertEqual(cmd[cmd.index("--title") + 1], "제목")
+        self.assertNotIn("--thumbnail", cmd)          # 썸네일이 없으니 옵션째 빠짐
+        self.assertEqual(cmd[-1], "a,b")
+        self.assertTrue(Path(files["meta"]).is_file())
+
+    def test_unknown_placeholder_and_empty_command(self):
+        info = self.info()
+        files = self.up.write_package(info)
+        with self.assertRaises(self.up.UploadError):
+            self.up.build_command([], info, files)
+        with self.assertRaises(self.up.UploadError):
+            self.up.build_command([sys.executable, "{nope}"], info, files)
 
 
 if __name__ == "__main__":

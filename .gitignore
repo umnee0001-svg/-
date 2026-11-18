@@ -22,3 +22,7 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# 롱폼 스튜디오 개인 설정 (업로드 명령)
+studio.config.json
+*.part

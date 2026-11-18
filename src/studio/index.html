@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>롱폼 스튜디오</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --line: #e2e4e9; --text: #1d2129; --muted: #6b7280;
+    --accent: #e5322d; --accent-ink: #ffffff; --ok: #16a34a; --warn: #b45309; --bad: #dc2626;
+    --soft: #f8f9fb; --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121417; --panel: #1b1e23; --line: #2c3038; --text: #e6e8eb; --muted: #9aa1ac;
+      --soft: #22262c; --accent: #ff4d47;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+         background: var(--bg); color: var(--text); font-size: 14px; }
+  .app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+  nav { background: var(--panel); border-right: 1px solid var(--line); padding: 20px 12px; position: sticky; top: 0; height: 100vh; }
+  nav h1 { font-size: 17px; margin: 0 8px 20px; display: flex; align-items: center; gap: 8px; }
+  nav h1 .dot { width: 22px; height: 16px; background: var(--accent); border-radius: 5px; position: relative; }
+  nav h1 .dot::after { content: ""; position: absolute; left: 8px; top: 4px; border-left: 7px solid #fff;
+                       border-top: 4px solid transparent; border-bottom: 4px solid transparent; }
+  nav button { display: flex; width: 100%; align-items: center; gap: 10px; padding: 11px 12px; margin-bottom: 4px;
+               border: 0; border-radius: 8px; background: none; color: var(--text); font: inherit; cursor: pointer; text-align: left; }
+  nav button .n { width: 22px; height: 22px; border-radius: 50%; background: var(--soft); border: 1px solid var(--line);
+                  display: grid; place-items: center; font-size: 12px; color: var(--muted); flex: none; }
+  nav button.active { background: var(--soft); font-weight: 700; }
+  nav button.active .n { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  nav .foot { position: absolute; bottom: 16px; left: 20px; right: 20px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  main { padding: 28px 32px 80px; max-width: 1180px; width: 100%; }
+  .page { display: none; }
+  .page.active { display: block; }
+  h2 { margin: 0 0 4px; font-size: 22px; }
+  .sub { color: var(--muted); margin: 0 0 22px; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; margin-bottom: 16px; }
+  .card h3 { margin: 0 0 14px; font-size: 15px; }
+  label.f { display: block; margin-bottom: 12px; }
+  label.f > span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; font-weight: 600; }
+  input[type=text], input[type=number], input[type=datetime-local], select, textarea {
+    width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft);
+    color: var(--text); font: inherit; }
+  textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+  input[type=color] { width: 44px; height: 36px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; min-width: 0; }
+  .row.tight > * { flex: none; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 16px; border-radius: 8px;
+         border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
+  .btn:hover { background: var(--soft); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { filter: brightness(1.07); }
+  .btn.small { padding: 6px 10px; font-size: 12px; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn.big { width: 100%; padding: 14px; font-size: 15px; }
+  video, img.preview { width: 100%; border-radius: 8px; background: #000; display: block; }
+  .ph { aspect-ratio: 16/9; border-radius: 8px; background: var(--soft); border: 1px dashed var(--line); display: grid;
+        place-items: center; color: var(--muted); text-align: center; padding: 20px; }
+  .drop { border: 2px dashed var(--line); border-radius: var(--radius); padding: 18px; text-align: center; color: var(--muted);
+          margin-bottom: 14px; cursor: pointer; }
+  .drop.over { border-color: var(--accent); color: var(--accent); background: var(--soft); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: -6px; margin-bottom: 12px; line-height: 1.5; }
+  .counter { float: right; font-weight: 400; }
+  .counter.over { color: var(--bad); }
+  .log { background: #0f1115; color: #cfd6e0; font-family: Consolas, "D2Coding", monospace; font-size: 12px; border-radius: 8px;
+         padding: 12px; height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+  .progress { font-family: Consolas, monospace; font-size: 12px; color: var(--muted); margin: 8px 0; min-height: 16px; }
+  .status { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 700; }
+  .status.running { background: #fef3c7; color: #92400e; }
+  .status.done { background: #dcfce7; color: #166534; }
+  .status.failed { background: #fee2e2; color: #991b1b; }
+  .notice { border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; line-height: 1.55; border: 1px solid; }
+  .notice.warn { background: #fffbeb; border-color: #fcd34d; color: #78350f; }
+  .notice.ok { background: #f0fdf4; border-color: #86efac; color: #14532d; }
+  @media (prefers-color-scheme: dark) {
+    .notice.warn { background: #2a2210; border-color: #6b5413; color: #fcd34d; }
+    .notice.ok { background: #10251a; border-color: #1f5c38; color: #86efac; }
+  }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg label { padding: 8px 12px; cursor: pointer; border-right: 1px solid var(--line); background: var(--soft); }
+  .seg label:last-child { border-right: 0; }
+  .seg input { display: none; }
+  .seg label:has(input:checked) { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+  .thumbs img { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid transparent; }
+  .thumbs img.sel { border-color: var(--accent); }
+  .toast { position: fixed; right: 20px; bottom: 20px; background: var(--text); color: var(--bg); padding: 12px 16px;
+           border-radius: 8px; max-width: 420px; box-shadow: 0 8px 24px rgba(0,0,0,.2); display: none; z-index: 9; white-space: pre-wrap; }
+  .toast.bad { background: var(--bad); color: #fff; }
+  code { background: var(--soft); border: 1px solid var(--line); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  details summary { cursor: pointer; color: var(--muted); font-weight: 600; margin-bottom: 10px; }
+  .yt { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .yt .meta { padding: 10px 12px; }
+  .yt .t { font-weight: 700; line-height: 1.35; margin-bottom: 4px; word-break: break-all; }
+  .yt .d { font-size: 12px; color: var(--muted); }
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    nav { position: static; height: auto; display: flex; flex-wrap: wrap; gap: 4px; }
+    nav h1 { width: 100%; } nav .foot { display: none; } nav button { width: auto; }
+    .grid { grid-template-columns: 1fr; }
+    main { padding: 20px 16px 60px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav>
+    <h1><span class="dot"></span>롱폼 스튜디오</h1>
+    <button data-page="edit" class="active"><span class="n">1</span>영상 편집</button>
+    <button data-page="thumb"><span class="n">2</span>썸네일</button>
+    <button data-page="upload"><span class="n">3</span>업로드</button>
+    <button data-page="settings"><span class="n">⚙</span>업로드 설정</button>
+    <div class="foot">파일은 모두 이 컴퓨터 안에만 저장됩니다.<br>원본: <code id="fIn">samples</code><br>결과: <code id="fOut">output</code></div>
+  </nav>
+
+  <main>
+    <!-- ───────── 1. 편집 ───────── -->
+    <section class="page active" id="page-edit">
+      <h2>1. 영상 편집</h2>
+      <p class="sub">원본 영상을 고르고 자막·배경음악·구간을 정한 뒤 렌더링하세요.</p>
+      <div class="grid">
+        <div>
+          <div class="card">
+            <h3>원본 영상</h3>
+            <div class="drop" data-drop>영상·자막(.srt)·음악·폰트 파일을 여기에 끌어다 놓거나 <b>클릭해서 고르세요</b></div>
+            <label class="f"><span>편집할 영상</span><select id="eInput"></select></label>
+            <div id="eInputPreview"><div class="ph">영상을 고르면 여기서 미리 볼 수 있습니다</div></div>
+          </div>
+          <div class="card" id="eJobCard" style="display:none">
+            <h3>진행 상황 <span id="eStatus" class="status"></span></h3>
+            <div class="progress" id="eProgress"></div>
+            <div class="log" id="eLog"></div>
+            <div class="row tight" style="margin-top:10px">
+              <button class="btn small" id="eCancel">취소</button>
+            </div>
+          </div>
+          <div class="card" id="eResultCard" style="display:none">
+            <h3>완성된 영상</h3>
+            <video id="eResult" controls preload="metadata"></video>
+            <div class="row" style="margin-top:12px">
+              <button class="btn primary" id="eToThumb">이 영상으로 썸네일 만들기 →</button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <h3>스타일</h3>
+            <label class="f"><span>프리셋 (화면 비율과 기본 스타일)</span><select id="ePreset"></select></label>
+            <div class="row">
+              <label class="f"><span>시작 (초 또는 분:초)</span><input type="text" id="eStart" placeholder="처음부터"></label>
+              <label class="f"><span>끝</span><input type="text" id="eEnd" placeholder="끝까지"></label>
+            </div>
+            <div class="row tight" style="margin:-4px 0 12px">
+              <button class="btn small" id="eSetStart">▶ 지금 위치를 시작으로</button>
+              <button class="btn small" id="eSetEnd">지금 위치를 끝으로 ■</button>
+            </div>
+            <label class="f"><span>배속</span>
+              <select id="eSpeed"><option value="">원래 속도</option><option>0.9</option><option>1.1</option><option>1.2</option><option>1.25</option><option>1.5</option></select>
+            </label>
+          </div>
+          <div class="card">
+            <h3>자막</h3>
+            <div class="seg" style="margin-bottom:12px">
+              <label><input type="radio" name="eSubMode" value="auto" checked>자동 생성</label>
+              <label><input type="radio" name="eSubMode" value="file">SRT 파일</label>
+              <label><input type="radio" name="eSubMode" value="none">자막 없음</label>
+            </div>
+            <div class="hint" id="eSubHint">음성을 인식해서 자막을 만듭니다. (faster-whisper 설치 필요, 처음엔 모델을 받느라 오래 걸립니다)</div>
+            <label class="f" id="eSrtWrap" style="display:none"><span>자막 파일</span><select id="eSrt"></select></label>
+            <div class="row">
+              <label class="f"><span>언어</span><select id="eLang"><option value="ko">한국어</option><option value="ja">일본어</option><option value="en">영어</option></select></label>
+              <label class="f"><span>글자 크기</span><input type="number" id="eFontSize" min="20" max="200" placeholder="프리셋 값"></label>
+            </div>
+            <label class="f"><span>폰트</span><select id="eFont"></select></label>
+          </div>
+          <div class="card">
+            <h3>꾸미기</h3>
+            <div class="row">
+              <label class="f"><span>배경음악</span><select id="eBgm"></select></label>
+              <label class="f" style="flex:.5"><span>음악 크기 (dB)</span><input type="number" id="eBgmVol" value="-24" max="0" min="-60"></label>
+            </div>
+            <label class="f"><span>워터마크 (로고 PNG)</span><select id="eWm"></select></label>
+            <label class="f"><span>첫 화면 문구 (선택)</span><input type="text" id="eHook" placeholder="예: 이거 모르면 손해"></label>
+            <label class="f"><span>저장할 파일 이름 (선택)</span><input type="text" id="eSlug" placeholder="원본 파일 이름 사용"></label>
+          </div>
+          <button class="btn primary big" id="eRun">렌더링 시작</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── 2. 썸네일 ───────── -->
+    <section class="page" id="page-thumb">
+      <h2>2. 썸네일</h2>
+      <p class="sub">영상에서 장면을 고르고 글자를 얹어 1280×720 썸네일을 만듭니다.</p>
+      <div class="grid">
+        <div>
+          <div class="card">
+            <h3>배경 고르기</h3>
+            <label class="f"><span>영상 또는 이미지</span><select id="tSource"></select></label>
+            <div id="tSourcePreview"><div class="ph">배경으로 쓸 영상이나 이미지를 고르세요</div></div>
+            <div class="row" style="margin-top:10px;align-items:end">
+              <label class="f" style="margin:0"><span>장면 위치 (초)</span><input type="number" id="tTime" value="0" min="0" step="0.1"></label>
+              <button class="btn" id="tUseCurrent" style="flex:none">지금 보이는 장면 사용</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>결과</h3>
+            <div id="tResult"><div class="ph">‘썸네일 만들기’를 누르면 여기에 나옵니다</div></div>
+            <div class="row" style="margin-top:12px">
+              <button class="btn primary" id="tToUpload" disabled>이 썸네일로 업로드 준비 →</button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <h3>글자</h3>
+            <label class="f"><span>썸네일 문구</span>
+              <textarea id="tText" rows="3" placeholder="이거 모르면 손해&#10;!3분 정리"></textarea></label>
+            <div class="hint">한 줄씩 적으세요. 줄 맨 앞에 <code>!</code> 를 붙이면 그 줄은 강조색이 됩니다. 길면 글자가 자동으로 작아집니다.</div>
+            <label class="f"><span>위치</span>
+              <div class="seg">
+                <label><input type="radio" name="tPos" value="left" checked>왼쪽</label>
+                <label><input type="radio" name="tPos" value="center">가운데</label>
+                <label><input type="radio" name="tPos" value="bottom">아래</label>
+              </div>
+            </label>
+            <div class="row">
+              <label class="f"><span>글자 크기</span><input type="number" id="tSize" value="120" min="36" max="260"></label>
+              <label class="f"><span>외곽선 두께</span><input type="number" id="tOutline" value="10" min="0" max="30"></label>
+            </div>
+            <div class="row tight" style="gap:18px;margin-bottom:12px">
+              <label class="f" style="margin:0"><span>글자색</span><input type="color" id="tColor" value="#ffffff"></label>
+              <label class="f" style="margin:0"><span>강조색</span><input type="color" id="tAccent" value="#ffe600"></label>
+              <label class="f" style="margin:0"><span>외곽선 색</span><input type="color" id="tOutlineColor" value="#000000"></label>
+            </div>
+            <label class="f"><span>배경 어둡게 <b id="tDarkenVal">25%</b></span><input type="range" id="tDarken" min="0" max="0.8" step="0.05" value="0.25" style="width:100%"></label>
+            <label style="display:flex;gap:8px;align-items:center;margin-bottom:12px"><input type="checkbox" id="tBox"> 글자 뒤에 반투명 박스</label>
+            <label class="f"><span>폰트</span><select id="tFont"></select></label>
+          </div>
+          <button class="btn primary big" id="tRun">썸네일 만들기</button>
+          <div class="card" style="margin-top:16px">
+            <h3>만들어 둔 썸네일</h3>
+            <div class="thumbs" id="tList"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── 3. 업로드 ───────── -->
+    <section class="page" id="page-upload">
+      <h2>3. 업로드</h2>
+      <p class="sub">제목·설명·썸네일을 채우고 올리세요. 업로드는 ‘업로드 설정’에 적어 둔 도구(Volcano Kit 등)가 처리합니다.</p>
+      <div id="uNotice"></div>
+      <div class="grid">
+        <div>
+          <div class="card">
+            <h3>올릴 파일</h3>
+            <label class="f"><span>영상</span><select id="uVideo"></select></label>
+            <label class="f"><span>썸네일</span><select id="uThumb"></select></label>
+          </div>
+          <div class="card">
+            <h3>미리보기</h3>
+            <div class="yt">
+              <div id="uThumbPreview"><div class="ph" style="border-radius:0;border:0">썸네일 없음</div></div>
+              <div class="meta"><div class="t" id="uTitlePreview">제목</div><div class="d">내 채널 · 조회수 0회 · 방금 전</div></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <h3>영상 정보</h3>
+            <label class="f"><span>제목 <span class="counter" id="uTitleCount">0 / 100</span></span><input type="text" id="uTitle" maxlength="100"></label>
+            <label class="f"><span>설명 <span class="counter" id="uDescCount">0 / 5000</span></span><textarea id="uDesc" rows="9" placeholder="영상 설명, 타임라인(00:00 인트로), 링크 등"></textarea></label>
+            <label class="f"><span>태그 (쉼표로 구분)</span><input type="text" id="uTags" placeholder="예: 경제, 재테크, 3분정리"></label>
+            <div class="row">
+              <label class="f"><span>공개 범위</span>
+                <select id="uPrivacy"><option value="private">비공개</option><option value="unlisted">일부 공개</option><option value="public">공개</option></select></label>
+              <label class="f"><span>예약 공개 (선택)</span><input type="datetime-local" id="uPublishAt"></label>
+            </div>
+          </div>
+          <button class="btn primary big" id="uRun">업로드</button>
+          <div class="card" id="uJobCard" style="display:none;margin-top:16px">
+            <h3>업로드 진행 <span id="uStatus" class="status"></span></h3>
+            <div class="progress" id="uProgress"></div>
+            <div class="log" id="uLog"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── 설정 ───────── -->
+    <section class="page" id="page-settings">
+      <h2>업로드 설정</h2>
+      <p class="sub">지금 터미널에서 업로드할 때 쓰는 명령을 여기에 한 번만 적어 두면, ‘업로드’ 버튼이 그 명령을 대신 실행합니다.</p>
+      <div class="grid">
+        <div class="card">
+          <h3>업로드 명령</h3>
+          <label class="f"><span>명령 (한 줄에 한 칸씩)</span>
+            <textarea id="sCmd" rows="12" style="font-family:Consolas,monospace" placeholder="volcano&#10;upload&#10;{video}&#10;--title&#10;{title}&#10;--description-file&#10;{description_file}&#10;--thumbnail&#10;{thumbnail}"></textarea></label>
+          <label class="f"><span>실행 위치 폴더 (선택)</span><input type="text" id="sCwd" placeholder="비워 두면 이 프로그램 폴더"></label>
+          <button class="btn primary" id="sSave">저장</button>
+        </div>
+        <div class="card">
+          <h3>쓸 수 있는 자리표시자</h3>
+          <p class="hint" style="margin-top:0">업로드할 때 실제 값으로 바뀝니다. 값이 비어 있으면 (예: 썸네일 없음) 바로 앞의 <code>--옵션</code> 과 함께 빠집니다.</p>
+          <table style="width:100%;border-collapse:collapse;font-size:13px;line-height:2">
+            <tr><td><code>{video}</code></td><td>영상 파일 경로</td></tr>
+            <tr><td><code>{thumbnail}</code></td><td>썸네일 파일 경로</td></tr>
+            <tr><td><code>{title}</code></td><td>제목</td></tr>
+            <tr><td><code>{description}</code></td><td>설명 (글자 그대로)</td></tr>
+            <tr><td><code>{description_file}</code></td><td>설명이 담긴 .txt 파일 경로</td></tr>
+            <tr><td><code>{tags}</code></td><td>태그 (쉼표로 이어 붙임)</td></tr>
+            <tr><td><code>{privacy}</code></td><td>private / unlisted / public</td></tr>
+            <tr><td><code>{publish_at}</code></td><td>예약 공개 시각</td></tr>
+            <tr><td><code>{meta}</code></td><td>위 정보를 모두 담은 .json 파일 경로</td></tr>
+          </table>
+          <p class="hint" style="margin-top:12px">업로드할 때마다 영상 옆에 <code>영상이름.upload.json</code> 과 <code>영상이름.description.txt</code> 가 같이 저장됩니다.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<input type="file" id="filePick" multiple hidden>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let S = null;              // 서버 상태
+let lastOutput = null;     // 방금 렌더링한 영상 이름
+let lastThumb = null;      // 방금 만든 썸네일 이름
+
+// ───── 공통 ─────
+function toast(msg, bad = false) {
+  const t = $('toast'); t.textContent = msg; t.className = 'toast' + (bad ? ' bad' : '');
+  t.style.display = 'block'; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = 'none', bad ? 7000 : 3000);
+}
+async function api(path, body) {
+  const res = await fetch(path, body === undefined ? {} : {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({ error: '서버 응답을 읽지 못했습니다.' }));
+  if (!res.ok || data.error) throw new Error(data.error || res.statusText);
+  return data;
+}
+function fillSelect(sel, items, { empty, value } = {}) {
+  const prev = value ?? sel.value;
+  sel.innerHTML = '';
+  if (empty) sel.append(new Option(empty, ''));
+  for (const it of items) sel.append(typeof it === 'string' ? new Option(it, it) : new Option(it.label, it.value));
+  if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+}
+function parseTime(text) {
+  text = (text || '').trim(); if (!text) return '';
+  const parts = text.split(':').map(Number);
+  if (parts.some(isNaN)) throw new Error(`시간 형식이 잘못됐습니다: ${text}`);
+  return parts.reduce((acc, v) => acc * 60 + v, 0);
+}
+function fmtTime(sec) {
+  const m = Math.floor(sec / 60), s = (sec % 60).toFixed(1).padStart(4, '0');
+  return `${m}:${s}`;
+}
+function radio(name) { return document.querySelector(`input[name=${name}]:checked`).value; }
+function showPage(name) {
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.page === name));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + name));
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => showPage(b.dataset.page));
+
+async function refresh() {
+  S = await api('/api/state');
+  $('fIn').textContent = S.folders.input; $('fOut').textContent = S.folders.output;
+  fillSelect($('eInput'), S.inputs.map(f => f.name), { empty: S.inputs.length ? null : '― 영상을 먼저 넣어 주세요 ―' });
+  fillSelect($('ePreset'), S.presets.map(p => ({ value: p.file, label: `${p.kind} · ${p.name} (${p.width}×${p.height})` })));
+  fillSelect($('eSrt'), S.subtitles.map(f => f.name), { empty: '― 자막 파일 선택 ―' });
+  const fonts = S.fonts.map(f => f.name);
+  fillSelect($('eFont'), fonts, { empty: '프리셋/시스템 기본 폰트' });
+  fillSelect($('tFont'), fonts, { empty: '시스템 기본 폰트 (윈도우: 맑은 고딕)' });
+  fillSelect($('eBgm'), S.bgm.map(f => f.name), { empty: '없음' });
+  fillSelect($('eWm'), S.watermarks.map(f => f.name), { empty: '없음' });
+  fillSelect($('tSource'), [
+    ...S.outputs.map(f => ({ value: 'output|' + f.name, label: '🎬 완성본 · ' + f.name })),
+    ...S.inputs.map(f => ({ value: 'input|' + f.name, label: '📁 원본 · ' + f.name })),
+    ...S.input_images.map(f => ({ value: 'input|' + f.name, label: '🖼 이미지 · ' + f.name })),
+  ], { empty: S.outputs.length + S.inputs.length ? null : '― 영상이 없습니다 ―' });
+  fillSelect($('uVideo'), S.outputs.map(f => f.name), { empty: S.outputs.length ? null : '― 먼저 렌더링하세요 ―' });
+  fillSelect($('uThumb'), S.thumbnails.map(f => f.name), { empty: '썸네일 없이 올리기' });
+  $('tList').innerHTML = S.thumbnails.length ? '' : '<span class="hint">아직 없습니다</span>';
+  for (const f of S.thumbnails) {
+    const img = new Image(); img.src = f.url + '?v=' + f.mtime; img.title = f.name;
+    img.onclick = () => { showThumbResult(f.name, img.src); };
+    $('tList').append(img);
+  }
+  $('sCmd').value = S.upload.command.join('\n'); $('sCwd').value = S.upload.working_dir;
+  $('uNotice').innerHTML = S.upload.configured
+    ? `<div class="notice ok">업로드 명령이 설정되어 있습니다: <code>${escapeHtml(S.upload.command.slice(0, 3).join(' '))} …</code></div>`
+    : `<div class="notice warn"><b>업로드 명령이 아직 없습니다.</b> 왼쪽 ‘업로드 설정’에서 지금 터미널에서 쓰는 Volcano Kit 명령을 적어 주세요.<br>설정 전에 눌러도 제목·설명·태그를 담은 파일은 영상 옆에 저장됩니다.</div>`;
+  onInputChange(); onThumbSourceChange(); updateUploadPreview();
+}
+function escapeHtml(s) { return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+// ───── 파일 끌어다 놓기 ─────
+async function sendFiles(files) {
+  for (const file of files) {
+    toast(`올리는 중: ${file.name} (${(file.size / 1048576).toFixed(1)}MB)`);
+    try {
+      const res = await fetch('/api/files?name=' + encodeURIComponent(file.name), { method: 'POST', body: file });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error);
+      toast(`추가됨: ${data.name}`);
+      await refresh();
+      if (/\.(mp4|mov|mkv|avi|webm|m4v)$/i.test(data.name)) { $('eInput').value = data.name; onInputChange(); }
+    } catch (e) { toast(`${file.name}: ${e.message}`, true); }
+  }
+}
+document.querySelectorAll('[data-drop]').forEach(d => d.onclick = () => $('filePick').click());
+$('filePick').onchange = (e) => { sendFiles([...e.target.files]); e.target.value = ''; };
+window.addEventListener('dragover', (e) => { e.preventDefault(); document.querySelectorAll('[data-drop]').forEach(d => d.classList.add('over')); });
+window.addEventListener('dragleave', (e) => { if (!e.relatedTarget) document.querySelectorAll('[data-drop]').forEach(d => d.classList.remove('over')); });
+window.addEventListener('drop', (e) => {
+  e.preventDefault(); document.querySelectorAll('[data-drop]').forEach(d => d.classList.remove('over'));
+  if (e.dataTransfer.files.length) sendFiles([...e.dataTransfer.files]);
+});
+
+// ───── 1. 편집 ─────
+function onInputChange() {
+  const name = $('eInput').value;
+  const box = $('eInputPreview');
+  if (!name) { box.innerHTML = '<div class="ph">영상을 고르면 여기서 미리 볼 수 있습니다</div>'; return; }
+  const cur = box.querySelector('video');
+  const url = '/media/input/' + encodeURIComponent(name);
+  if (cur && cur.dataset.name === name) return;
+  box.innerHTML = `<video id="eInVideo" controls preload="metadata" data-name="${escapeHtml(name)}" src="${url}"></video>`;
+}
+$('eInput').onchange = onInputChange;
+$('eSetStart').onclick = () => { const v = $('eInVideo'); if (v) $('eStart').value = fmtTime(v.currentTime); };
+$('eSetEnd').onclick = () => { const v = $('eInVideo'); if (v) $('eEnd').value = fmtTime(v.currentTime); };
+document.querySelectorAll('input[name=eSubMode]').forEach(r => r.onchange = () => {
+  const m = radio('eSubMode');
+  $('eSrtWrap').style.display = m === 'file' ? '' : 'none';
+  $('eSubHint').textContent = { auto: '음성을 인식해서 자막을 만듭니다. (faster-whisper 설치 필요, 처음엔 모델을 받느라 오래 걸립니다)',
+    file: '직접 만든 .srt 자막을 씁니다. 파일을 왼쪽에 끌어다 놓으면 목록에 나옵니다.', none: '자막 없이 만듭니다.' }[m];
+});
+
+function watchJob(job, ui, onDone) {
+  ui.card.style.display = '';
+  const tick = async () => {
+    let j;
+    try { j = await api('/api/jobs/' + job.id); } catch (e) { setTimeout(tick, 1500); return; }
+    ui.status.textContent = { running: '진행 중', done: '완료', failed: '실패' }[j.status] + ` · ${Math.round(j.elapsed)}초`;
+    ui.status.className = 'status ' + j.status;
+    ui.progress.textContent = j.progress;
+    const atBottom = ui.log.scrollTop + ui.log.clientHeight >= ui.log.scrollHeight - 20;
+    ui.log.textContent = j.log.join('\n');
+    if (atBottom) ui.log.scrollTop = ui.log.scrollHeight;
+    if (j.status === 'running') setTimeout(tick, 1000); else onDone(j);
+  };
+  tick();
+}
+
+let renderJob = null;
+$('eRun').onclick = async () => {
+  try {
+    const body = {
+      input: $('eInput').value, preset: $('ePreset').value,
+      trim_start: parseTime($('eStart').value), trim_end: parseTime($('eEnd').value),
+      speed: $('eSpeed').value, subtitle_mode: radio('eSubMode'), subtitle_file: $('eSrt').value,
+      language: $('eLang').value, font_size: $('eFontSize').value, font_file: $('eFont').value,
+      bgm_file: $('eBgm').value, bgm_volume: $('eBgmVol').value, watermark_file: $('eWm').value,
+      hook: $('eHook').value, slug: $('eSlug').value,
+    };
+    renderJob = await api('/api/render', body);
+    $('eRun').disabled = true; $('eResultCard').style.display = 'none';
+    watchJob(renderJob, { card: $('eJobCard'), status: $('eStatus'), progress: $('eProgress'), log: $('eLog') }, async (j) => {
+      $('eRun').disabled = false;
+      if (j.status === 'done' && j.result.url) {
+        lastOutput = j.result.output;
+        $('eResult').src = j.result.url; $('eResultCard').style.display = '';
+        toast('렌더링 완료!');
+        await refresh();
+      } else toast('렌더링에 실패했습니다. 진행 상황 로그를 확인하세요.', true);
+    });
+  } catch (e) { toast(e.message, true); }
+};
+$('eCancel').onclick = async () => { if (renderJob) await api(`/api/jobs/${renderJob.id}/cancel`, {}); };
+$('eToThumb').onclick = () => {
+  if (lastOutput) { $('tSource').value = 'output|' + lastOutput; onThumbSourceChange(); }
+  showPage('thumb');
+};
+
+// ───── 2. 썸네일 ─────
+function onThumbSourceChange() {
+  const v = $('tSource').value, box = $('tSourcePreview');
+  if (!v) { box.innerHTML = '<div class="ph">배경으로 쓸 영상이나 이미지를 고르세요</div>'; return; }
+  const [folder, name] = v.split('|');
+  const url = `/media/${folder}/${encodeURIComponent(name)}`;
+  const cur = box.firstElementChild;
+  if (cur && cur.dataset.key === v) return;
+  const isImg = /\.(jpe?g|png|webp)$/i.test(name);
+  box.innerHTML = isImg ? `<img class="preview" data-key="${escapeHtml(v)}" src="${url}">`
+    : `<video id="tVideo" data-key="${escapeHtml(v)}" controls preload="metadata" src="${url}"></video>`;
+  $('tUseCurrent').disabled = isImg; $('tTime').disabled = isImg;
+  if (!isImg) $('tVideo').onseeked = $('tVideo').onpause = () => { $('tTime').value = $('tVideo').currentTime.toFixed(1); };
+}
+$('tSource').onchange = onThumbSourceChange;
+$('tUseCurrent').onclick = () => { const v = $('tVideo'); if (v) $('tTime').value = v.currentTime.toFixed(1); };
+$('tDarken').oninput = () => $('tDarkenVal').textContent = Math.round($('tDarken').value * 100) + '%';
+function showThumbResult(name, url) {
+  lastThumb = name;
+  $('tResult').innerHTML = `<img class="preview" src="${url}"><div class="hint" style="margin-top:8px">${escapeHtml(name)}</div>`;
+  $('tToUpload').disabled = false;
+  document.querySelectorAll('#tList img').forEach(i => i.classList.toggle('sel', i.title === name));
+}
+$('tRun').onclick = async () => {
+  const v = $('tSource').value;
+  if (!v) return toast('배경으로 쓸 영상이나 이미지를 고르세요.', true);
+  const [folder, name] = v.split('|');
+  $('tRun').disabled = true; $('tRun').textContent = '만드는 중…';
+  try {
+    const r = await api('/api/thumbnail', {
+      source_folder: folder, source: name, time: $('tTime').value, text: $('tText').value,
+      position: radio('tPos'), font_size: $('tSize').value, outline: $('tOutline').value,
+      color: $('tColor').value, accent_color: $('tAccent').value, outline_color: $('tOutlineColor').value,
+      darken: $('tDarken').value, box: $('tBox').checked, font_file: $('tFont').value,
+    });
+    await refresh();
+    showThumbResult(r.name, r.url);
+  } catch (e) { toast(e.message, true); }
+  finally { $('tRun').disabled = false; $('tRun').textContent = '썸네일 만들기'; }
+};
+$('tToUpload').onclick = () => {
+  const src = $('tSource').value;
+  if (src.startsWith('output|')) $('uVideo').value = src.slice(7);
+  if (lastThumb) $('uThumb').value = lastThumb;
+  updateUploadPreview(); showPage('upload');
+};
+
+// ───── 3. 업로드 ─────
+function updateUploadPreview() {
+  const t = $('uThumb').value;
+  $('uThumbPreview').innerHTML = t ? `<img class="preview" style="border-radius:0" src="/media/output/${encodeURIComponent(t)}?v=${Date.now()}">`
+    : '<div class="ph" style="border-radius:0;border:0">썸네일 없음</div>';
+  $('uTitlePreview').textContent = $('uTitle').value || '제목';
+  const tl = $('uTitle').value.length, dl = $('uDesc').value.length;
+  $('uTitleCount').textContent = `${tl} / 100`; $('uTitleCount').classList.toggle('over', tl > 100);
+  $('uDescCount').textContent = `${dl} / 5000`; $('uDescCount').classList.toggle('over', dl > 5000);
+}
+['uThumb'].forEach(id => $(id).onchange = updateUploadPreview);
+['uTitle', 'uDesc'].forEach(id => $(id).oninput = updateUploadPreview);
+$('uRun').onclick = async () => {
+  try {
+    const job = await api('/api/upload', {
+      video: $('uVideo').value, thumbnail: $('uThumb').value, title: $('uTitle').value,
+      description: $('uDesc').value, tags: $('uTags').value, privacy: $('uPrivacy').value,
+      publish_at: $('uPublishAt').value,
+    });
+    $('uRun').disabled = true;
+    watchJob(job, { card: $('uJobCard'), status: $('uStatus'), progress: $('uProgress'), log: $('uLog') }, (j) => {
+      $('uRun').disabled = false;
+      toast(j.status === 'done' ? '업로드 명령이 끝났습니다!' : '업로드 명령이 실패했습니다. 로그를 확인하세요.', j.status !== 'done');
+    });
+  } catch (e) {
+    toast(e.message, true);
+    if (!S.upload.configured) await refresh();
+  }
+};
+
+// ───── 설정 ─────
+$('sSave').onclick = async () => {
+  try { await api('/api/config', { command: $('sCmd').value, working_dir: $('sCwd').value }); toast('저장했습니다.'); await refresh(); }
+  catch (e) { toast(e.message, true); }
+};
+
+refresh().catch(e => toast('불러오기 실패: ' + e.message, true));
+</script>
+</body>
+</html>
