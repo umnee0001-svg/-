@@ -6,3 +6,6 @@ faster-whisper>=1.0.0
 
 # --input 에 URL 을 넣을 때 필요
 yt-dlp>=2024.1.1
+
+# 롱폼 스튜디오의 'AI 체크' (제목·설명·썸네일 검토) 에 필요
+anthropic>=2.10.0

@@ -98,6 +98,34 @@
   .yt .meta { padding: 10px 12px; }
   .yt .t { font-weight: 700; line-height: 1.35; margin-bottom: 4px; word-break: break-all; }
   .yt .d { font-size: 12px; color: var(--muted); }
+  .ai-head { display: flex; gap: 16px; align-items: center; margin-bottom: 14px; }
+  .ai-score { width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; font-size: 24px;
+              font-weight: 800; flex: none; border: 5px solid var(--line); }
+  .ai-score.hi { border-color: var(--ok); color: var(--ok); }
+  .ai-score.mid { border-color: #d97706; color: #d97706; }
+  .ai-score.lo { border-color: var(--bad); color: var(--bad); }
+  .ai-sec { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
+  .ai-sec h4 { margin: 0 0 8px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .bar { flex: 1; height: 6px; background: var(--soft); border-radius: 99px; overflow: hidden; max-width: 140px; }
+  .bar i { display: block; height: 100%; }
+  .ai-sec ul { margin: 4px 0 8px; padding-left: 0; list-style: none; line-height: 1.55; }
+  .ai-sec li { padding-left: 22px; position: relative; margin-bottom: 3px; }
+  .ai-sec li::before { position: absolute; left: 0; font-weight: 800; }
+  .ai-sec li.g::before { content: "✓"; color: var(--ok); }
+  .ai-sec li.i::before { content: "!"; color: var(--bad); left: 5px; }
+  .ai-sec li.s::before { content: "→"; color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+  .chip { border: 1px solid var(--line); background: var(--soft); border-radius: 8px; padding: 7px 10px; cursor: pointer;
+          font: inherit; color: var(--text); text-align: left; }
+  .chip:hover { border-color: var(--accent); }
+  .rewrite { white-space: pre-wrap; background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+             max-height: 220px; overflow: auto; font-size: 13px; line-height: 1.55; }
+  .risk { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 99px; }
+  .risk.low { background: #dcfce7; color: #166534; } .risk.medium { background: #fef3c7; color: #92400e; }
+  .risk.high { background: #fee2e2; color: #991b1b; }
+  .spinner { width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+             display: inline-block; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   @media (max-width: 900px) {
     .app { grid-template-columns: 1fr; }
     nav { position: static; height: auto; display: flex; flex-wrap: wrap; gap: 4px; }
@@ -284,7 +312,11 @@
               <label class="f"><span>예약 공개 (선택)</span><input type="datetime-local" id="uPublishAt"></label>
             </div>
           </div>
-          <button class="btn primary big" id="uRun">업로드</button>
+          <div class="row">
+            <button class="btn big" id="uAi">🤖 AI 체크</button>
+            <button class="btn primary big" id="uRun">업로드</button>
+          </div>
+          <div class="card" id="uAiCard" style="display:none;margin-top:16px"></div>
           <div class="card" id="uJobCard" style="display:none;margin-top:16px">
             <h3>업로드 진행 <span id="uStatus" class="status"></span></h3>
             <div class="progress" id="uProgress"></div>
@@ -305,6 +337,18 @@
             <textarea id="sCmd" rows="12" style="font-family:Consolas,monospace" placeholder="volcano&#10;upload&#10;{video}&#10;--title&#10;{title}&#10;--description-file&#10;{description_file}&#10;--thumbnail&#10;{thumbnail}"></textarea></label>
           <label class="f"><span>실행 위치 폴더 (선택)</span><input type="text" id="sCwd" placeholder="비워 두면 이 프로그램 폴더"></label>
           <button class="btn primary" id="sSave">저장</button>
+        </div>
+        <div class="card">
+          <h3>AI 체크 (제목·설명·썸네일 검토)</h3>
+          <div id="sAiState" class="hint" style="margin-top:0"></div>
+          <label class="f"><span>Anthropic API 키</span><input type="password" id="sAiKey" placeholder="sk-ant-..." autocomplete="off"></label>
+          <div class="hint">console.anthropic.com 에서 발급합니다. 이 컴퓨터의 <code>studio.config.json</code> 에만 저장되고 git 에는 올라가지 않습니다. 검토 한 번에 보통 수십 원 정도의 사용료가 듭니다.</div>
+          <label class="f"><span>채널 메모 (선택)</span><textarea id="sAiNotes" rows="3" placeholder="예: 30~40대 직장인 대상 재테크 채널. 차분하고 신뢰감 있는 톤."></textarea></label>
+          <div class="hint">AI 가 검토할 때 채널 성격과 시청자를 참고합니다.</div>
+          <div class="row tight">
+            <button class="btn primary" id="sAiSave">저장</button>
+            <button class="btn" id="sAiClear">키 지우기</button>
+          </div>
         </div>
         <div class="card">
           <h3>쓸 수 있는 자리표시자</h3>
@@ -400,6 +444,10 @@ async function refresh() {
   $('uNotice').innerHTML = S.upload.configured
     ? `<div class="notice ok">업로드 명령이 설정되어 있습니다: <code>${escapeHtml(S.upload.command.slice(0, 3).join(' '))} …</code></div>`
     : `<div class="notice warn"><b>업로드 명령이 아직 없습니다.</b> 왼쪽 ‘업로드 설정’에서 지금 터미널에서 쓰는 Volcano Kit 명령을 적어 주세요.<br>설정 전에 눌러도 제목·설명·태그를 담은 파일은 영상 옆에 저장됩니다.</div>`;
+  $('sAiState').innerHTML = S.ai.configured
+    ? `✅ 연결됨 (${escapeHtml(S.ai.key_hint)}${S.ai.from_env ? ', 환경변수' : ''}) · 모델 <code>${escapeHtml(S.ai.model)}</code>`
+    : '⚠️ API 키가 아직 없습니다.';
+  if (document.activeElement !== $('sAiNotes')) $('sAiNotes').value = S.ai.notes || '';
   onInputChange(); onThumbSourceChange(); updateUploadPreview();
 }
 function escapeHtml(s) { return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -574,6 +622,90 @@ $('uRun').onclick = async () => {
 $('sSave').onclick = async () => {
   try { await api('/api/config', { command: $('sCmd').value, working_dir: $('sCwd').value }); toast('저장했습니다.'); await refresh(); }
   catch (e) { toast(e.message, true); }
+};
+
+// ───── AI 체크 ─────
+function scoreClass(n) { return n >= 80 ? 'hi' : n >= 60 ? 'mid' : 'lo'; }
+function scoreColor(n) { return n >= 80 ? 'var(--ok)' : n >= 60 ? '#d97706' : 'var(--bad)'; }
+function list(items, cls) {
+  return items && items.length ? '<ul>' + items.map(t => `<li class="${cls}">${escapeHtml(t)}</li>`).join('') + '</ul>' : '';
+}
+function section(name, sec) {
+  return `<div class="ai-sec"><h4>${name} <span class="bar"><i style="width:${sec.score}%;background:${scoreColor(sec.score)}"></i></span>
+    <span style="color:${scoreColor(sec.score)}">${sec.score}점</span></h4>
+    ${list(sec.good, 'g')}${list(sec.issues, 'i')}${list(sec.suggestions, 's')}`;
+}
+const RISK = { low: '정책 위험 낮음', medium: '정책 위험 보통', high: '정책 위험 높음' };
+function renderReview(r) {
+  const c = $('uAiCard');
+  let html = `<h3>AI 체크 결과</h3>
+    <div class="ai-head"><div class="ai-score ${scoreClass(r.overall_score)}">${r.overall_score}</div>
+      <div><div style="margin-bottom:6px"><span class="risk ${r.policy.risk}">${RISK[r.policy.risk] || r.policy.risk}</span></div>
+      <div style="line-height:1.5">${escapeHtml(r.summary)}</div></div></div>`;
+  if (r.policy.notes.length) html += list(r.policy.notes, 'i');
+
+  html += section('제목', r.title);
+  if (r.title.alternatives.length) {
+    html += '<div class="hint" style="margin:4px 0 0">제목 후보 — 누르면 바로 적용됩니다</div><div class="chips">'
+      + r.title.alternatives.map((t, i) => `<button class="chip" data-title="${i}">${escapeHtml(t)}</button>`).join('') + '</div>';
+  }
+  html += '</div>';
+
+  html += section('설명', r.description);
+  if (r.description.rewrite) {
+    html += `<div class="hint" style="margin:4px 0 4px">AI 가 다듬은 설명</div><div class="rewrite">${escapeHtml(r.description.rewrite)}</div>
+      <div class="row tight" style="margin-top:8px"><button class="btn small" id="aiApplyDesc">이 설명으로 바꾸기</button></div>`;
+  }
+  html += '</div>';
+
+  html += r.thumbnail.provided ? section('썸네일', r.thumbnail) + '</div>'
+    : `<div class="ai-sec"><h4>썸네일 <span class="hint" style="margin:0">(선택 안 함)</span></h4>${list(r.thumbnail.suggestions, 's')}</div>`;
+
+  html += `<div class="ai-sec"><h4>태그</h4>${list(r.tags.issues, 'i')}`;
+  if (r.tags.suggested.length) {
+    html += '<div class="chips">' + r.tags.suggested.map(t => `<span class="chip" style="cursor:default">#${escapeHtml(t)}</span>`).join('') + '</div>'
+      + '<div class="row tight"><button class="btn small" id="aiApplyTags">추천 태그 추가</button></div>';
+  }
+  html += `</div><div class="hint" style="margin:12px 0 0">모델: ${escapeHtml(r.model || '')} · AI 의견은 참고용입니다.</div>`;
+  c.innerHTML = html; c.style.display = '';
+
+  c.querySelectorAll('[data-title]').forEach(b => b.onclick = () => {
+    $('uTitle').value = r.title.alternatives[+b.dataset.title]; updateUploadPreview(); toast('제목을 바꿨습니다.');
+  });
+  const d = $('aiApplyDesc');
+  if (d) d.onclick = () => {
+    if ($('uDesc').value.trim() && !confirm('지금 설명을 AI 가 다듬은 설명으로 바꿀까요?')) return;
+    $('uDesc').value = r.description.rewrite; updateUploadPreview(); toast('설명을 바꿨습니다.');
+  };
+  const t = $('aiApplyTags');
+  if (t) t.onclick = () => {
+    const have = [...new Set($('uTags').value.split(',').map(x => x.trim().replace(/^#/, '')).filter(Boolean))];
+    for (const tag of r.tags.suggested) if (!have.includes(tag)) have.push(tag);
+    $('uTags').value = have.join(', '); toast('태그를 추가했습니다.');
+  };
+  c.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+$('uAi').onclick = async () => {
+  if (!S.ai.configured) { toast('먼저 ‘업로드 설정’에서 AI 체크용 API 키를 넣어 주세요.', true); showPage('settings'); return; }
+  const btn = $('uAi');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> AI 가 보는 중… (30초쯤)';
+  try {
+    renderReview(await api('/api/ai-review', {
+      title: $('uTitle').value, description: $('uDesc').value, tags: $('uTags').value,
+      thumbnail: $('uThumb').value, notes: S.ai.notes || '',
+    }));
+  } catch (e) { toast(e.message, true); }
+  finally { btn.disabled = false; btn.textContent = '🤖 AI 체크'; }
+};
+$('sAiSave').onclick = async () => {
+  try {
+    await api('/api/ai-config', { api_key: $('sAiKey').value, notes: $('sAiNotes').value });
+    $('sAiKey').value = ''; toast('저장했습니다.'); await refresh();
+  } catch (e) { toast(e.message, true); }
+};
+$('sAiClear').onclick = async () => {
+  if (!confirm('저장된 API 키를 지울까요?')) return;
+  try { await api('/api/ai-config', { clear: true }); toast('지웠습니다.'); await refresh(); } catch (e) { toast(e.message, true); }
 };
 
 refresh().catch(e => toast('불러오기 실패: ' + e.message, true));

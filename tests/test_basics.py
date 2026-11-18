@@ -380,5 +380,40 @@ class TestUploader(unittest.TestCase):
             self.up.build_command([sys.executable, "{nope}"], info, files)
 
 
+class TestAiReview(unittest.TestCase):
+    def test_schema_requires_every_property(self):
+        import ai_review
+
+        def walk(node, where="root"):
+            if node.get("type") == "object":
+                self.assertEqual(set(node["required"]), set(node["properties"]), where)
+                self.assertIs(node["additionalProperties"], False, where)
+                for k, v in node["properties"].items():
+                    walk(v, f"{where}.{k}")
+            elif node.get("type") == "array":
+                walk(node["items"], where + "[]")
+        walk(ai_review.REVIEW_SCHEMA)
+
+    def test_content_without_thumbnail_is_text_only(self):
+        import ai_review
+        content = ai_review.build_content(title="제목", description="", tags=["a"], thumbnail=None)
+        self.assertEqual([c["type"] for c in content], ["text"])
+        self.assertIn("(비어 있음)", content[0]["text"])
+
+    def test_content_puts_image_first(self):
+        import tempfile
+        import ai_review
+        img = Path(tempfile.mkdtemp()) / "t.jpg"
+        img.write_bytes(b"\xff\xd8\xff")
+        content = ai_review.build_content(title="t", description="d", tags=[], thumbnail=str(img))
+        self.assertEqual(content[0]["type"], "image")
+        self.assertEqual(content[0]["source"]["media_type"], "image/jpeg")
+
+    def test_empty_input_is_rejected_before_any_call(self):
+        import ai_review
+        with self.assertRaises(ai_review.ReviewError):
+            ai_review.review(title=" ", description="", thumbnail=None, api_key="sk-ant-x")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

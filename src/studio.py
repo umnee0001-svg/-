@@ -27,6 +27,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import ai_review  # noqa: E402
 import preset as preset_mod  # noqa: E402
 import thumbnail as thumb_mod  # noqa: E402
 import uploader  # noqa: E402
@@ -340,8 +341,42 @@ def start_upload(data: dict) -> Job:
     return job
 
 
+def ai_key(cfg: dict | None = None) -> str | None:
+    cfg = cfg or uploader.load_config()
+    return (cfg.get("ai") or {}).get("api_key") or os.environ.get("ANTHROPIC_API_KEY") or None
+
+
+def run_ai_review(data: dict) -> dict:
+    thumb = resolve_in("output", data.get("thumbnail")) if data.get("thumbnail") else None
+    return ai_review.review(
+        title=(data.get("title") or "").strip(),
+        description=data.get("description") or "",
+        tags=uploader.parse_tags(data.get("tags") or ""),
+        thumbnail=str(thumb) if thumb else None,
+        notes=data.get("notes") or "",
+        api_key=ai_key(),
+    )
+
+
+def save_ai_config(data: dict) -> dict:
+    cfg = uploader.load_config()
+    ai = cfg.setdefault("ai", {})
+    key = (data.get("api_key") or "").strip()
+    if data.get("clear"):
+        ai.pop("api_key", None)
+    elif key:
+        if not key.startswith("sk-"):
+            raise ValueError("API 키는 보통 'sk-ant-' 로 시작합니다. 복사한 값을 다시 확인해 주세요.")
+        ai["api_key"] = key
+    if "notes" in data:
+        ai["notes"] = (data.get("notes") or "").strip()
+    uploader.save_config(cfg)
+    return state()["ai"]
+
+
 def state() -> dict:
     cfg = uploader.load_config()
+    key = ai_key(cfg)
     return {
         "presets": list_presets(),
         "inputs": list_folder("input", VIDEO_EXTS),
@@ -357,6 +392,13 @@ def state() -> dict:
             "working_dir": cfg["upload"].get("working_dir") or "",
             "configured": bool(cfg["upload"].get("command")),
             "placeholders": list(uploader.PLACEHOLDERS),
+        },
+        "ai": {
+            "configured": bool(key),
+            "key_hint": (key[:7] + "…" + key[-4:]) if key else "",
+            "from_env": bool(key) and not (cfg.get("ai") or {}).get("api_key"),
+            "notes": (cfg.get("ai") or {}).get("notes", ""),
+            "model": ai_review.MODEL,
         },
         "defaults": cfg.get("defaults", {}),
         "folders": {k: rel(v) for k, v in FOLDERS.items()},
@@ -498,6 +540,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(make_thumb(self.read_json()))
             elif url.path == "/api/upload":
                 self.send_json(start_upload(self.read_json()).to_dict())
+            elif url.path == "/api/ai-review":
+                self.send_json(run_ai_review(self.read_json()))
+            elif url.path == "/api/ai-config":
+                self.send_json(save_ai_config(self.read_json()))
             elif url.path == "/api/config":
                 self.send_json(save_upload_config(self.read_json()))
             elif url.path.startswith("/api/jobs/") and url.path.endswith("/cancel"):
@@ -509,7 +555,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.send_error_json("없는 주소입니다.", HTTPStatus.NOT_FOUND)
         except (ValueError, FileNotFoundError, RuntimeError,
-                preset_mod.PresetError, uploader.UploadError) as exc:
+                preset_mod.PresetError, uploader.UploadError, ai_review.ReviewError) as exc:
             self.send_error_json(str(exc))
         except (BrokenPipeError, ConnectionResetError):
             pass
